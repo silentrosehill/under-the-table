@@ -1,0 +1,98 @@
+/* Art-deco card faces and backs. Markup from cardface.js. Size: set --cw (px) or let it fill the parent. */
+.cf {
+  --cw: 100%; --ac: #7a1f1f; --cf-paper: #e9dcbc; --bk: #14110f;
+  position: relative; width: var(--cw); aspect-ratio: 5 / 7; container-type: inline-size; overflow: hidden;
+  border-radius: 3.2cqw; color: #1a1512; user-select: none; -webkit-user-select: none; flex: none;
+  box-shadow: 0 1.2cqw 4cqw rgba(0,0,0,.55), 0 0 0 .4cqw rgba(0,0,0,.6);
+  font-family: var(--font, 'Barlow', system-ui, sans-serif); font-weight: 500;
+}
+.cf-attack { --ac: #7a1f1f; }
+.cf-counter { --ac: #1d2a44; }
+.cf-negative { --ac: #8c1c1c; }
+.cf-positive { --ac: #b08a3e; }
+.cf-mafia { --ac: #7a1b1e; }
+.cf-casino { --ac: #1f4a35; }
+.cf-casino.cf-tone-pos { --ac: #b08a3e; }
+.cf-casino.cf-tone-neg { --ac: #8c1c1c; }
+
+/* paper: stock gradient, grain via feTurbulence data-URI, foxing at the edges */
+.cf-paper {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 8% 6%, rgba(140,90,30,.32), transparent 22%),
+    radial-gradient(ellipse at 96% 92%, rgba(140,90,30,.34), transparent 26%),
+    radial-gradient(ellipse at 94% 10%, rgba(120,80,30,.2), transparent 16%),
+    radial-gradient(ellipse at 6% 90%, rgba(120,80,30,.22), transparent 18%),
+    radial-gradient(circle at 70% 62%, rgba(130,90,40,.12) 0 3%, transparent 4%),
+    radial-gradient(circle at 24% 38%, rgba(130,90,40,.1) 0 2%, transparent 3%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' seed='4'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .1  0 0 0 .55 0'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.55'/></svg>"),
+    linear-gradient(160deg, #efe4c6, #e2d3aa 70%, #d6c394);
+}
+
+.cf-frame, .cf-backart { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* illustration window: chamfered, positioned on the 250x350 frame grid */
+.cf-art {
+  position: absolute; left: 7.6%; top: 14.6%; width: 84.8%; height: 44.9%; /* x19-231, y51-206 */
+  clip-path: polygon(3.7% 0, 96.3% 0, 100% 5.1%, 100% 94.9%, 96.3% 100%, 3.7% 100%, 0 94.9%, 0 5.1%);
+  background: #14110f;
+}
+.cf-art img { width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.06) saturate(.95); }
+.cf-wash { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(0,0,0,.35)); mix-blend-mode: multiply; }
+
+/* type strip */
+.cf-strip {
+  position: absolute; left: 17%; right: 17%; top: 4.6%; height: 6.6%;
+  background: var(--ac); display: flex; align-items: center; justify-content: center;
+  clip-path: polygon(4% 0, 96% 0, 100% 50%, 96% 100%, 4% 100%, 0 50%);
+  box-shadow: inset 0 0 0 .5cqw rgba(0,0,0,.25);
+}
+.cf-label { font-family: 'Oswald', 'Arial Narrow', sans-serif; font-weight: 600; font-size: 5.6cqw; letter-spacing: .9cqw; color: #f0e4c4; padding-left: .9cqw; }
+.cf-casino .cf-label { color: #e8d9a8; }
+
+/* corner badge */
+.cf-badge {
+  position: absolute; left: 4.4%; top: 3.6%; width: 11%; aspect-ratio: 1; padding: 1.6cqw; box-sizing: border-box;
+  background: #1a1512; color: var(--ac); border-radius: 50%; fill: currentColor;
+  box-shadow: 0 0 0 .6cqw var(--cf-paper), 0 0 0 1.1cqw var(--ac);
+}
+.cf-positive .cf-badge, .cf-casino.cf-tone-pos .cf-badge { color: #d8b45e; }
+.cf-attack .cf-badge, .cf-negative .cf-badge { color: #c14a3a; }
+.cf-counter .cf-badge { color: #7f95c4; }
+.cf-casino .cf-badge { color: #d8b45e; }
+
+.cf-title {
+  position: absolute; left: 9%; right: 9%; top: 61.4%; height: 8%;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-family: 'Abril Fatface', 'Oswald', Georgia, serif; font-size: 8.4cqw; line-height: 1; color: #1a1512;
+  text-shadow: .25cqw .25cqw 0 rgba(176,138,62,.35); letter-spacing: .15cqw;
+}
+.cf-title::before, .cf-title::after { content: ''; }
+.cf-text {
+  position: absolute; left: 11%; right: 11%; top: 70.4%; height: 14.5%;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: 5.2cqw; line-height: 1.22; color: #2c241c; border-top: .35cqw solid var(--ac);
+  padding-top: 1cqw; box-sizing: border-box; overflow: hidden;
+}
+.cf-foot { position: absolute; left: 11%; right: 11%; top: 87%; height: 7%; display: flex; align-items: center; justify-content: center; }
+.cf-value {
+  font-family: 'Oswald', 'Arial Narrow', sans-serif; font-weight: 600; font-size: 5.8cqw; letter-spacing: .5cqw; color: #f0e4c4;
+  background: #1a1512; padding: .5cqw 5cqw; clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
+  box-shadow: inset 0 0 0 .5cqw var(--ac);
+}
+
+/* backs */
+.cf-back { --ac: #b08a3e; --bk: #1c1613; background: var(--bk); }
+.cf-back-tip { --ac: #b08a3e; --bk: #1d2a44; }
+.cf-back-table { --ac: #c9a24a; --bk: #4a1616; }
+.cf-mono {
+  position: absolute; left: 0; right: 0; top: 36%; height: 28%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; color: var(--ac); line-height: 1;
+}
+.cf-mono-a { font-family: 'Abril Fatface', Georgia, serif; font-size: 15cqw; letter-spacing: .6cqw; text-shadow: 0 .5cqw 0 rgba(0,0,0,.6); }
+.cf-mono-b { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 8cqw; letter-spacing: 1.5cqw; margin-top: 1.5cqw; padding-left: 1.5cqw; }
+.cf-back-table .cf-mono-a { font-size: 11.5cqw; }
+.cf-back-table .cf-mono-b { font-size: 7.4cqw; letter-spacing: .6cqw; }
+
+/* the Family's note keeps the typewriter: it is a letter, not a paragraph of UI */
+.cf-mafia { font-family: 'Special Elite', 'Courier New', monospace; }

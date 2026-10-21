@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#722c37"/><stop offset="1" stop-color="#23151b"/></linearGradient><linearGradient id="gold" x2="0.8" y2="1"><stop stop-color="#f5dfa0"/><stop offset="1" stop-color="#b6833a"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="22" stdDeviation="20" flood-opacity=".4"/></filter></defs>
+<rect x="48" y="48" width="928" height="928" rx="210" fill="url(#bg)"/>
+<rect x="83" y="83" width="858" height="858" rx="176" fill="none" stroke="url(#gold)" stroke-width="13"/>
+<path d="M138 512h748M512 138v748" stroke="#d7b575" opacity=".08" stroke-width="4"/>
+<g transform="rotate(-13 512 490)" filter="url(#shadow)"><rect x="264" y="242" width="496" height="496" rx="96" fill="url(#gold)"/><rect x="286" y="264" width="452" height="452" rx="78" fill="none" stroke="#fff1c5" stroke-opacity=".6" stroke-width="5"/>
+<g fill="#4c202b"><circle cx="383" cy="361" r="38"/><circle cx="641" cy="361" r="38"/><circle cx="512" cy="490" r="38"/><circle cx="383" cy="619" r="38"/><circle cx="641" cy="619" r="38"/></g></g>
+<path d="m387 811 40-24 29 22 56-40 56 40 29-22 40 24-18 44H405Z" fill="url(#gold)"/>
+</svg>

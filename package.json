@@ -1,0 +1,75 @@
+{
+  "name": "monopoly-party",
+  "version": "1.0.1",
+  "description": "Online Monopoly for up to 4 friends",
+  "scripts": {
+    "start": "node server.js",
+    "online": "node server.js --online",
+    "desktop": "electron .",
+    "prepare:desktop": "node tools/prepare-desktop.cjs",
+    "build:mac": "npm run prepare:desktop && electron-builder --mac zip --arm64",
+    "build:windows": "npm run prepare:desktop && electron-builder --win zip --x64",
+    "test:desktop": "electron . --smoke-test",
+    "test:server": "node tools/server-smoke.cjs",
+    "build:icons": "node tools/build-icons.cjs"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
+    "cannon-es": "0.20.0",
+    "electron": "44.9.1",
+    "electron-builder": "26.15.3",
+    "sharp": "0.35.5",
+    "three": "0.170.0"
+  },
+  "main": "desktop/main.cjs",
+  "author": "Monopoly Party",
+  "private": true,
+  "build": {
+    "appId": "local.monopolyparty.desktop",
+    "productName": "Monopoly Party",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "public/**/*",
+      "server.js",
+      "maps.js",
+      "package.json",
+      "CREDITS.md",
+      "DESKTOP.md",
+      "!public/**/.DS_Store",
+      "PRIVACY.md"
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "artifactName": "Monopoly-Party-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "category": "public.app-category.board-games",
+      "identity": null,
+      "extraResources": [
+        {
+          "from": "desktop-resources/darwin-arm64/cloudflared",
+          "to": "cloudflared"
+        }
+      ],
+      "icon": "desktop/icons/icon.icns"
+    },
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "extraResources": [
+        {
+          "from": "desktop-resources/win32-x64/cloudflared.exe",
+          "to": "cloudflared.exe"
+        }
+      ],
+      "signExecutable": false,
+      "icon": "desktop/icons/icon.ico"
+    }
+  }
+}
