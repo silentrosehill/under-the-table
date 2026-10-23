@@ -1,4 +1,4 @@
-# Privacy and hosting
+# Under The Table: privacy and hosting
 
 ## What is published
 

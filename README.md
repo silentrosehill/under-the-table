@@ -1,8 +1,23 @@
-# 🎲 Monopoly Party
+# 🎲 Under The Table
 
-Desktop apps for **macOS Apple Silicon** and **Windows x64** are available on the [Releases page](https://github.com/silentrosehill/monopoly-party/releases). Extract the download and open the app; no Node.js installation is needed. See [Desktop guide](DESKTOP.md) and [Privacy and hosting](PRIVACY.md).
+Desktop apps for **macOS Apple Silicon** and **Windows x64** are available on the [Releases page](https://github.com/silentrosehill/monopoly-party/releases). Extract the download and open the app; no Node.js installation is needed. The first launch on macOS (right-click → Open) and Windows (More info → Run anyway) needs one extra click; see the [Desktop guide](DESKTOP.md). The app can check for new versions itself. See also [Patch notes](PATCHNOTES.md) and [Privacy and hosting](PRIVACY.md).
 
-Monopoly in the browser for 2–4 friends. One person hosts it on their computer, and everyone else plays from a browser, either from their own home or on the same Wi‑Fi.
+Under The Table is a Monopoly-style property game in the browser for 2–4 friends. One person hosts it on their computer, and everyone else plays from a browser, either from their own home or on the same Wi‑Fi.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![City Mode mid-game](docs/media/hud-v2-game.jpg) | ![Top-down camera](docs/media/camera-topdown-city.jpg) |
+| City Mode: the noir model city, one building per level | Top-down camera |
+| ![Casino wheel](docs/media/hud-v2-wheel.jpg) | ![Building bombing](docs/media/fx-bombing.jpg) |
+| The casino wheel | Events play out on the board |
+| ![Settings](docs/media/hud-v2-settings.jpg) | ![Lobby](docs/media/hud-v2-lobby.jpg) |
+| In-game settings | The lobby |
+
+![Mafia loan](docs/media/mafia-terms.jpg)
+
+*Borrowing from the Mafia*
 
 ## Playing from home (online)
 

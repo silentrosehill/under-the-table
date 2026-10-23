@@ -5,6 +5,7 @@
 //   - one shared tooltip (#tip) and one info card (#infoCard) for the whole page, wired by event delegation.
 import { t, lang, onLang } from './i18n.js';
 import { cardFace } from './cardface.js';
+import { ic, emo } from './icons.js';
 
 const ART_DIR = 'art/cards/';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -24,7 +25,7 @@ export const INFO = {
   'fx-police': { icon: '🚓', title: 'Police shutdown', short: '{tile} earns no rent · {left}', long: 'The police closed the building during an investigation: nobody pays rent on this tile while it lasts.', dur: 'A fixed number of rounds (2 from the global wheel, 3 from the casino).', end: 'It lifts by itself when the timer ends. Nothing you can pay for it.', who: 'The tile owner loses the rent; visitors stay for free.', art: 'casino-police' },
   'fx-mayor': { icon: '🎩', title: "Mayor's Favor", short: '{tile} rent doubled · {left}', long: 'The mayor looks kindly on this building: rent here is doubled.', dur: 'A fixed number of rounds (2 from the global wheel, 3 from the casino).', end: 'It ends by itself when the timer runs out.', who: 'The tile owner earns double; visitors pay double.', art: 'casino-mayor' },
   'fx-gang': { icon: '🔪', title: 'Gang turf', short: '{tile} rent halved · {left}', long: 'A gang took over this district: every tile of that colour pays only half its rent.', dur: 'A fixed number of rounds.', end: 'It ends by itself when the timer runs out. Police Protection does not stop it.', who: 'Owners of tiles in that district (the global wheel hits each player\'s main district).', art: 'casino-gang' },
-  'fx-squatters': { icon: '🛏', title: 'Squatters', short: '{tile} earns no rent · {left}', long: 'Squatters moved into this tile: it earns no rent while they stay.', dur: '3 rounds.', end: 'Evict them from the tile\'s deed on your turn (a quarter of the tile\'s value) — or wait it out. A recent eviction doubles a Shady Billionaire payout.', who: 'The tile owner loses the rent.', art: 'squatters_in' },
+  'fx-squatters': { icon: '🛏', title: 'Squatters', short: '{tile} earns no rent · {left}', long: 'Squatters moved into this tile: it earns no rent while they stay.', dur: '3 rounds.', end: 'Evict them from the tile\'s deed on your turn (half the tile\'s value), once one full turn of yours has passed since they arrived — or wait it out. A recent eviction doubles a Shady Billionaire payout.', who: 'The tile owner loses the rent.', art: 'squatters_in' },
   'fx-crime': { icon: '🚨', title: 'Crime wave', short: 'Rents −40% on {tile} · {left}', long: 'A crime wave scares the customers away: rents on the affected tiles drop (by 40%).', dur: '2 to 3 rounds.', end: 'Pay the police when the card is drawn (and be audited afterwards), or wait for it to end.', who: 'The player who drew it, on one district — or on every tile in the city.', art: 'crime' },
   'fx-gift': { icon: '🎁', title: "Mayor's Gift", short: '{tile} rent ×3 · {left}', long: 'The mayor blessed one tile: triple rent until its owner\'s next turn.', dur: 'Until the owner\'s next turn.', end: 'It ends by itself.', who: 'The tile owner earns triple; visitors pay triple.', art: 'gift' },
   'fx-shootout-win': { icon: '🚔', title: 'Police guard', short: '{tile} rent ×1.5 · {left}', long: 'A gang hit a guarded tile and the police won the shootout. The tile now earns 50% more.', dur: '5 rounds.', end: 'It ends by itself.', who: 'The tile owner.', art: 'protection' },
@@ -36,8 +37,8 @@ export const INFO = {
   props: { icon: '🏠', title: 'Properties', short: '{n} properties owned.', long: 'The number of tiles this player owns. Each coloured pip is one tile in its district colour (railroads and utilities are grey). Click a pip to open the tile.', dur: 'Until sold, lost or mortgaged.', end: 'Buy more tiles to complete a district: a full set pays +50% rent.', who: 'This player.' },
   hand: { icon: '🂠', title: 'Cards in hand', short: '{n} cards kept — contents are secret.', long: 'Attack and counter cards (Hire a Gang, Send the Squatters, Police Protection) are kept until played. The others only see how many you hold, never which ones.', dur: 'Until played.', end: 'Play them on your own turn.', who: 'This player.' },
   'hand-mine': { icon: '🂠', title: 'Your hand', short: '{n} cards — click to open your hand.', long: 'The cards you kept. Open your hand on your own turn to play one. Others only see how many you hold.', dur: 'Until played.', end: 'Play them on your own turn.', who: 'You.' },
-  mafia: { icon: '🎩', title: 'Mafia loan', short: '{due} due · {left}', long: 'You borrowed from the Mafia. Repay before the deadline: when it hits zero the family collects what you still owe — taking cash, then your best tile, or knocking you out if you own nothing.', dur: 'A fixed number of your turns.', end: 'Repay (in full or in part) from the repay window.', who: 'This player only.', art: 'mafia-table' },
-  'mafia-mine': { icon: '🎩', title: 'Mafia loan', short: '{due} due · {left} — click to repay.', long: 'You borrowed from the Mafia. Repay before the deadline: when it hits zero the family collects what you still owe — taking cash, then your best tile, or knocking you out if you own nothing.', dur: 'A fixed number of your turns.', end: 'Click the slot on your turn to repay, in full or in part.', who: 'You.', art: 'mafia-table' },
+  mafia: { icon: '🎩', title: 'Mafia loan', short: '{due} due · {left}', long: 'You borrowed from the Mafia on terms you chose (interest = 10% + 4% × turns + 2% per $250K). Repay before the deadline: when it hits zero the family collects what you still owe — taking cash, then your best tile, or knocking you out if you own nothing.', dur: 'A fixed number of your turns.', end: 'Repay (in full or in part) from the repay window.', who: 'This player only.', art: 'mafia-table' },
+  'mafia-mine': { icon: '🎩', title: 'Mafia loan', short: '{due} due · {left} — click to repay.', long: 'You borrowed from the Mafia on terms you chose (interest = 10% + 4% × turns + 2% per $250K). Repay before the deadline: when it hits zero the family collects what you still owe — taking cash, then your best tile, or knocking you out if you own nothing.', dur: 'A fixed number of your turns.', end: 'Click the slot on your turn to repay, in full or in part.', who: 'You.', art: 'mafia-table' },
   turn: { icon: '▶', title: 'Whose turn', short: "{name}'s turn.", long: 'The highlighted panel is the player who is on the move. Everybody else waits (and can still trade or chat).', dur: 'Until they end their turn.', end: 'Doubles give an extra roll.', who: 'The active player.' },
   team: { icon: '⚑', title: 'Team {name}', short: 'Teammates share the win.', long: 'In 2v2 the team with the higher combined net worth wins. Teammates can send each other cash (with a fee) and pay each other {rent}.', dur: 'The whole game.', end: 'Teams are set in the lobby.', who: 'Both teammates.' },
   bot: { icon: '🤖', title: 'Computer player', short: 'A bot plays this seat.', long: 'This seat is played by the computer. Bots buy, build, trade and play cards on their own.', dur: 'The whole game.', end: 'The host can add or remove bots in the lobby.', who: 'This seat.' },
@@ -47,6 +48,7 @@ export const INFO = {
   worth: { icon: '$', title: 'Net worth', short: 'Cash and assets: {amount}.', long: 'Cash plus the value of every tile and building owned. When the round limit is reached, the highest net worth wins.', dur: 'Changes all the time.', end: '', who: 'This player.' },
   share: { icon: '⚖', title: 'Share to mate', short: '{pct}% of rent goes to the teammate.', long: 'In 2v2, the share of the rents you earn that is paid straight to your teammate. Change it with the slider on your own turn.', dur: 'Until changed.', end: 'Move the slider on your own turn.', who: 'Both teammates.' },
   // ----- top centre
+  speed: { icon: '⏳', title: 'Game speed', short: 'How fast the game plays: Relaxed, Normal or Fast.', long: 'Chosen by the host in the lobby. Relaxed (the default) gives every move, dice roll, card, wheel, pop-up and bot turn about 60% more time. Normal is the original pace. Fast is about a third quicker. It never changes the rules or the odds.', dur: 'The whole game.', end: 'Only the host can change it, before the game starts.', who: 'Everybody.' },
   round: { icon: '⏱', title: 'Round counter', short: '{text}', long: 'A round is one turn for every player. Timed effects (police, gangs, squatters…) count in rounds, and the game can end after a set number of rounds.', dur: '', end: '', who: 'Everybody.' },
   global: { icon: '🎡', title: 'Global wheel', short: '{hint}', long: 'Every few rounds the wheel spins and one event hits EVERY player at once: squatters, police raids, mayor favour, gang turf, crime wave, gang war, a windfall, a boom, a tax audit, One Too Many, or police protection. All eleven are equally likely. See the card guide for each.', dur: 'Every {every} rounds (host setting).', end: '', who: 'Every player.', art: 'casino-whim' },
   // ----- tool bar (hover only)
@@ -62,6 +64,7 @@ export const INFO = {
   'tool-mute': { icon: '🔊', title: 'Volume', short: 'Sound and record volume.', long: '', dur: '', end: '', who: '' },
   'tool-drawer': { icon: '📜', title: 'Log & chat', short: 'Game log, chat, and the card guide.', long: '', dur: '', end: '', who: '' },
   'tool-quit': { icon: '🚪', title: 'Quit', short: 'Leave or end the game.', long: '', dur: '', end: '', who: '' },
+  'tool-settings': { icon: '⚙', title: 'Settings', short: 'Display, sound and information settings.', long: '', dur: '', end: '', who: '' },
   'tool-guide': { icon: '🂠', title: 'Cards & events', short: 'Every card and event, explained.', long: '', dur: '', end: '', who: '' },
 };
 
@@ -90,7 +93,7 @@ function tipHtml(node) {
   if (node.dataset.tip != null) return `<b>${esc(node.dataset.tip)}</b>`;
   const key = node.dataset.info || node.dataset.tipinfo, r = resolve(key, paramsOf(node));
   if (!r) return '';
-  return `<b><i>${esc(r.icon)}</i> ${esc(r.title)}</b>${r.short ? `<span>${esc(r.short)}</span>` : ''}`;
+  return `<b><i>${emo(r.icon)}</i> ${esc(r.title)}</b>${r.short ? `<span>${esc(r.short)}</span>` : ''}`;
 }
 
 function placeTip(node) {
@@ -117,11 +120,11 @@ export function openInfo(key, p = {}) {
   if (!r) return;
   hideTip();
   const rows = [[t('What it does'), r.long], [t('How long'), r.dur], [t('How to get rid of it'), r.end], [t('Who it affects'), r.who]].filter(x => x[1]);
-  const art = r.art ? `<div class="ic-art"><img src="${ART_DIR + r.art}.svg" alt="" draggable="false"></div>` : `<div class="ic-icon">${esc(r.icon)}</div>`;
+  const art = r.art ? `<div class="ic-art"><img src="${ART_DIR + r.art}.svg" alt="" draggable="false"></div>` : `<div class="ic-icon">${emo(r.icon)}</div>`;
   cardEl.innerHTML = `<div class="ic-box" role="dialog" aria-modal="true">
-    <button class="ic-x" aria-label="${esc(t('Close'))}">✕</button>
+    <button class="ic-x" aria-label="${esc(t('Close'))}">${ic('close')}</button>
     ${art}
-    <h2 class="ic-title">${r.art ? `<i>${esc(r.icon)}</i> ` : ''}${esc(r.title)}</h2>
+    <h2 class="ic-title">${r.art ? `<i>${emo(r.icon)}</i> ` : ''}${esc(r.title)}</h2>
     ${r.short ? `<p class="ic-short">${esc(r.short)}</p>` : ''}
     ${rows.map(([h, v]) => `<h4>${esc(h)}</h4><p>${esc(v)}</p>`).join('')}
     <button class="btn small ic-ok">${esc(t('OK'))}</button></div>`;
@@ -190,12 +193,12 @@ export function initInfo() {
 // Every card and event in the game. `lang` strings go through t(); money is formatted by the caller's cash().
 const D = {
   gang: { type: 'attack', name: 'Hire a Gang', face: 'Wreck 1–3 levels of a rival tile.', long: 'Kept in your hand. On your turn, pay a gang (the price is printed on the card) to wreck 1 to 3 levels of a rival tile at level 2–4. If that tile is secretly protected, there is a shootout instead.', deck: [3, 2] },
-  squatters: { type: 'attack', name: 'Send the Squatters', face: 'A rival tile earns no rent for 3 rounds.', long: 'Kept in your hand. Squatters move into one rival tile: it earns no rent for 3 rounds, unless the owner pays to evict them.', deck: [2, 2] },
+  squatters: { type: 'attack', name: 'Send the Squatters', face: 'A rival tile earns no rent for 3 rounds.', long: 'Kept in your hand. Squatters move into one rival tile: it earns no rent for 3 rounds, unless the owner pays to evict them (half the tile\'s value, and only after one full turn of theirs has passed).', deck: [2, 2] },
   protection: { type: 'counter', name: 'Police Protection', face: 'Secretly guard one of your tiles.', long: 'Kept in your hand. Secretly guard one of your tiles: if a rival hires a gang against it, the gang meets the police in a shootout (win: rent ×1.5, loss: rent ×0.5, for 5 rounds).', deck: [2, 2] },
   gift: { type: 'positive', name: 'Mayor’s Gift', face: 'Triple the rent on one tile until your next turn.', long: 'Played at once. Pick one of your tiles: it earns triple rent until your next turn.', deck: [2, 1] },
   billionaire: { type: 'positive', name: 'Shady Billionaire', face: 'A briefcase of cash from a shady donor.', long: 'Played at once. A shady billionaire hands you {c300} — double ({c600}) if you evicted squatters in the last 3 rounds.', deck: [1, 2] },
   bribe: { type: 'positive', name: 'Bribe the Police', face: 'Frame an opponent: they go straight to jail.', long: 'Played at once. Pick an opponent: the captain takes the envelope and they go straight to jail. Casino deck only.', deck: [2, 0] },
-  squattersin: { type: 'negative', name: 'Squatters Move In', face: 'Squatters take one of your tiles. No rent for 3 rounds.', long: 'Bad luck. Squatters take over one of your tiles: no rent for 3 rounds, unless you pay to evict them. Under the Table only.', deck: [0, 2] },
+  squattersin: { type: 'negative', name: 'Squatters Move In', face: 'Squatters take one of your tiles. No rent for 3 rounds.', long: 'Bad luck. Squatters take over one of your tiles: no rent for 3 rounds, unless you pay to evict them (half the tile\'s value, and only after one full turn of yours has passed). Under the Table only.', deck: [0, 2] },
   crime: { type: 'negative', name: 'Crime Wave', face: 'Your rents drop 40% for 3 rounds.', long: 'Bad luck. A crime wave cuts your rents by 40% on one district (once in ten, the whole city) for 3 rounds. You may pay the police to clear it — then the taxman audits you for 5 rounds. Under the Table only.', deck: [0, 2] },
 };
 const CASINO_EV = [
@@ -243,31 +246,31 @@ export function guideHtml({ cash = n => String(n), settings = {} } = {}) {
   const evCard = e => cardFace({ key: e.art, type: 'casino', tone: e.tone, title: t(e.name), text: tp(e.face), value: `${e.pct}%`, size: 112 }).replace(/<span class="cf-label">[^<]*<\/span>/, `<span class="cf-label">${esc(t('CASINO'))}</span>`);
   const L = lang;   // re-render on language change is handled by the caller (it rebuilds the html)
   void L;
-  const mafiaOn = !!settings.mafia, amount = settings.mafiaAmount || 1000000, pct = settings.mafiaInterest ?? 30, turns = settings.mafiaTurns || 5;
-  const due = Math.round(amount * (1 + pct / 100));
+  const mafiaOn = !!settings.mafia;
   const every = settings.globalEvery || 0;
-  const section = (id, icon, title, intro, body, cls = '') => `<section class="g-sec ${cls}" id="g-${id}"><h3><i>${icon}</i> ${esc(t(title))}</h3>${intro ? `<p class="g-intro">${intro}</p>` : ''}<div class="g-grid">${body}</div></section>`;
+  const section = (id, icon, title, intro, body, cls = '') => `<section class="g-sec ${cls}" id="g-${id}"><h3><i>${emo(icon)}</i> ${esc(t(title))}</h3>${intro ? `<p class="g-intro">${intro}</p>` : ''}<div class="g-grid">${body}</div></section>`;
   return `
     <nav class="g-nav">${[['rule', 'Casino squares'], ['deck', 'Casino deck'], ['table', 'Under the Table'], ['wheel', 'Casino wheel'], ['taxi', 'Taxi Company'], ['global', 'Global wheel'], ['mafia', 'The Mafia'], ['status', 'Badges']].map(([id, n]) => `<a href="#g-${id}" data-g="${id}">${esc(t(n))}</a>`).join('')}</nav>
-    <section class="g-sec" id="g-rule"><h3><i>🎰</i> ${esc(t('Casino squares'))}</h3>
+    <section class="g-sec" id="g-rule"><h3>${emo('🎰')} ${esc(t('Casino squares'))}</h3>
       <div class="g-rule"><div class="g-half"><b>50%</b><span>${esc(t('The dealer deals a card from the casino deck.'))}</span></div><div class="g-half"><b>50%</b><span>${esc(t('The wheel spins: one of seven events strikes.'))}</span></div></div>
       <p class="g-intro">${esc(t('The classic cards (advance to a square, collect or pay money, go back 3 spaces, Get Out of Jail Free…) are mixed into both decks.'))}</p></section>
     ${section('deck', '🂠', 'Casino deck', esc(t('Dealt when a casino square lands on “card”. Classic cards are mixed in.')), cardsOf(['gang', 'squatters', 'protection', 'gift', 'billionaire', 'bribe']))}
     ${section('table', '🂡', 'Under the Table', esc(t('The second deck, drawn from the Under the Table squares. Bribe the Police never appears here.')), cardsOf(['gang', 'squatters', 'protection', 'squattersin', 'crime', 'billionaire', 'gift']))}
     ${section('wheel', '🎡', 'Casino wheel', esc(t('The wheel affects only the player who landed, except Building Bombing and Economic Boom. If that player has nothing to hit (no tile to shut down, say), that slice is skipped and the odds are shared out again.')),
       CASINO_EV.map(e => guideCard(evCard(e), 112, `<h4 class="g-t g-casino">${esc(t(e.name))} <em>${e.pct}%</em></h4><p>${esc(tp(e.long))}</p>`)).join(''))}
-    <section class="g-sec" id="g-taxi"><h3><i>🚕</i> ${esc(t('Taxi Company'))}</h3>
+    <section class="g-sec" id="g-taxi"><h3><i>${emo('🚕')}</i> ${esc(t('Taxi Company'))}</h3>
       <p class="g-intro">${esc(t('Landing on the Taxi Company (square 20) calls a cab. On your next turn there are no dice: you pick any square and ride straight there. Passing Payday pays your salary, the square you reach is played as usual, and there is no extra roll. If the Taxi Company jackpot is on, landing here still wins it.'))}</p></section>
     ${section('global', '🌍', 'Global wheel', esc(every ? t('Every {n} rounds the wheel hits every player. Eleven events, all equally likely (about 9% each).', { n: every }) : t('Switched off in this lobby. When on, it hits every player: eleven events, all equally likely (about 9% each).')),
-      GLOBAL_EV.map(e => `<div class="g-item g-ev">${e.art ? `<div class="g-art"><img src="${ART_DIR + e.art}.svg" alt="" draggable="false"></div>` : `<div class="g-art g-noart">${e.icon}</div>`}<div class="g-txt"><h4 class="g-t g-casino"><i>${e.icon}</i> ${esc(t(e.name))} <em>9%</em></h4><p>${esc(tp(e.long))}</p></div></div>`).join(''))}
-    <section class="g-sec" id="g-mafia"><h3><i>🎩</i> ${esc(t('The Mafia'))}</h3>
+      GLOBAL_EV.map(e => `<div class="g-item g-ev">${e.art ? `<div class="g-art"><img src="${ART_DIR + e.art}.svg" alt="" draggable="false"></div>` : `<div class="g-art g-noart">${emo(e.icon)}</div>`}<div class="g-txt"><h4 class="g-t g-casino"><i>${emo(e.icon)}</i> ${esc(t(e.name))} <em>9%</em></h4><p>${esc(tp(e.long))}</p></div></div>`).join(''))}
+    <section class="g-sec" id="g-mafia"><h3><i>${ic('fedora')}</i> ${esc(t('The Mafia'))}</h3>
       <div class="g-item g-ev"><div class="g-art"><img src="${ART_DIR}mafia-table.svg" alt="" draggable="false"></div><div class="g-txt">
         <h4 class="g-t g-casino">${esc(t('Borrow from the Mafia'))} <em>${mafiaOn ? esc(t('ON')) : esc(t('OFF'))}</em></h4>
         <p>${esc(t('When your cash is below zero and the loan would cover the debt, the family offers you cash. You may borrow twice per game, one loan at a time. Repay before the deadline: otherwise they take your cash, then your best tile, or knock you out if you own nothing.'))}</p>
-        <p class="g-now">${mafiaOn ? esc(t('This lobby: borrow {amount}, repay {due} ({pct}% interest) within {n} turns.', { amount: cash(amount), due: cash(due), pct, n: turns })) : esc(t('Not enabled in this lobby (host setting “Borrow from the Mafia”). It would be {amount}, repay {due} within {n} turns.', { amount: cash(amount), due: cash(due), n: turns }))}</p>
+        <p>${esc(t('You choose the terms when you borrow: $200K to $3M (in $50K steps, at least enough to cover your debt) and 3 to 10 turns to repay.'))}</p>
+        <p class="g-now">${esc(t('Interest = 10% + 4% × turns + 2% per $250K borrowed. Example: $1M for 5 turns → repay $1.38M (38%).'))} ${mafiaOn ? '' : esc(t('Not enabled in this lobby (host setting “Borrow from the Mafia”).'))}</p>
       </div></div></section>
-    <section class="g-sec" id="g-status"><h3><i>🏷</i> ${esc(t('Badges'))}</h3><p class="g-intro">${esc(t('Hover any icon in the game for a quick hint, click it for the full story.'))}</p>
-      <div class="g-grid g-small">${STATUS_KEYS.map(k => { const r = resolve(k, { ...fillParams, n: '–', pct: '–', tile: t('a tile'), left: t('a few rounds left'), due: '–', amount: '–', name: '–' }); return `<div class="g-badge"><i>${esc(r.icon)}</i><div><b>${esc(r.title)}</b><span>${esc(r.long)}</span></div></div>`; }).join('')}</div></section>`;
+    <section class="g-sec" id="g-status"><h3><i>${emo('🏷')}</i> ${esc(t('Badges'))}</h3><p class="g-intro">${esc(t('Hover any icon in the game for a quick hint, click it for the full story.'))}</p>
+      <div class="g-grid g-small">${STATUS_KEYS.map(k => { const r = resolve(k, { ...fillParams, n: '–', pct: '–', tile: t('a tile'), left: t('a few rounds left'), due: '–', amount: '–', name: '–' }); return `<div class="g-badge"><i>${emo(r.icon)}</i><div><b>${esc(r.title)}</b><span>${esc(r.long)}</span></div></div>`; }).join('')}</div></section>`;
 }
 
 let guideEl = null, guideOpts = null;
@@ -290,7 +293,7 @@ export function openGuide(opts) {
   guideEl.querySelector('.g-body').scrollTop = 0;
 }
 function renderGuide() {
-  guideEl.innerHTML = `<div class="g-wrap"><header class="g-head"><h2>${esc(t('Cards & events'))}</h2><button class="btn small g-close">${esc(t('Close'))}</button></header><div class="g-body">${guideHtml(guideOpts)}</div></div>`;
+  guideEl.innerHTML = `<div class="g-wrap"><header class="g-head"><h2>${esc(t('Cards & events'))}</h2><button class="btn small g-close">${ic('close')}<span>${esc(t('Close'))}</span></button></header><div class="g-body">${guideHtml(guideOpts)}</div></div>`;
 }
 export function closeGuide() { if (guideEl) guideEl.hidden = true; document.body.classList.remove('guide-open'); }
 export const guideOpen = () => !!guideEl && !guideEl.hidden;

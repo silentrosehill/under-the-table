@@ -3,6 +3,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { spawn } = require('node:child_process');
 const os = require('node:os');
+const updates = require('./updates.cjs');
 let launcher, game, server, tunnel, hostUrl, inviteUrl, quitting = false, starting = false;
 const launcherFile = path.join(__dirname, 'launcher.html');
 const launcherUrl = pathToFileURL(launcherFile).href;
@@ -20,7 +21,7 @@ function secure(win) {
   win.webContents.on('will-attach-webview', e => e.preventDefault());
 }
 function openGame(url) {
-  game = new BrowserWindow({ width: 1440, height: 940, minWidth: 800, minHeight: 600, backgroundColor: '#17130e', title: 'Monopoly Party', icon: path.join(__dirname, 'icons/icon.png'), webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+  game = new BrowserWindow({ width: 1440, height: 940, minWidth: 800, minHeight: 600, backgroundColor: '#17130e', title: 'Under The Table', icon: path.join(__dirname, 'icons/icon.png'), webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
   secure(game);
   const origin = new URL(url).origin;
   game.webContents.on('will-navigate', (e, target) => { if (new URL(target).origin !== origin) e.preventDefault(); });
@@ -39,7 +40,7 @@ function openGame(url) {
 }
 function startServer() {
   return new Promise((resolve, reject) => {
-    const child = utilityProcess.fork(path.join(__dirname, '..', 'server.js'), [], { env: { ...process.env, MONOPOLY_DESKTOP: '1', PORT: '0', SIM: '' }, stdio: 'pipe', serviceName: 'Monopoly Party Server' });
+    const child = utilityProcess.fork(path.join(__dirname, '..', 'server.js'), [], { env: { ...process.env, MONOPOLY_DESKTOP: '1', PORT: '0', SIM: '' }, stdio: 'pipe', serviceName: 'Under The Table Server' });
     server = child;
     const timeout = setTimeout(() => { child.kill(); reject(new Error('The local server did not start in time.')); }, 15000);
     child.stdout?.on('data', b => console.log(String(b).trim()));
@@ -77,17 +78,22 @@ ipcMain.handle('join', (event, address) => {
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('Enter an http:// or https:// game link.');
   openGame(url.href); return true;
 });
+ipcMain.handle('app-version', event => { trusted(event); return app.getVersion(); });
+ipcMain.handle('check-update', (event, force) => { trusted(event); return updates.check(force === true); });
+ipcMain.handle('open-release', event => { trusted(event); return updates.openRelease(); });
 ipcMain.handle('copy-invite', event => { trusted(event); if (inviteUrl) clipboard.writeText(inviteUrl); return !!inviteUrl; });
 ipcMain.handle('addresses', event => { trusted(event); if (!hostUrl) return []; const port = new URL(hostUrl).port; return Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => `http://${i.address}:${port}`); });
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { (game || launcher)?.show(); (game || launcher)?.focus(); });
   app.whenReady().then(async () => {
-    launcher = new BrowserWindow({ width: 760, height: 780, minWidth: 640, minHeight: 680, backgroundColor: '#17130e', title: 'Monopoly Party', icon: path.join(__dirname, 'icons/icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    launcher = new BrowserWindow({ width: 760, height: 780, minWidth: 640, minHeight: 680, backgroundColor: '#17130e', title: 'Under The Table', icon: path.join(__dirname, 'icons/icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } });
     secure(launcher);
     launcher.webContents.on('will-navigate', e => e.preventDefault());
     launcher.on('close', e => { if (game && !quitting) { e.preventDefault(); launcher.hide(); game.focus(); } });
     await launcher.loadFile(launcherFile);
+    // Quiet check at most once a day (cached); only a newer release is announced.
+    if (!smoke) updates.check(false).then(result => { if (result.state === 'available' && launcher && !launcher.isDestroyed()) launcher.webContents.send('update', result); }).catch(() => {});
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
       { label: 'Game', submenu: [{ label: 'Show launcher / invite link', click: () => launcher.show() }, { label: 'Return to game', click: () => game?.show() }, { type: 'separator' }, { role: 'quit' }] },

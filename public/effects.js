@@ -6,6 +6,12 @@ import { t } from './i18n.js';
 export const EFFECT_ICON = { police: '🚓', mayor: '🎩', gang: '🔪', squatters: '🛏', crime: '🚨', protection: '🛡', gift: '🎁', 'shootout-win': '🚔', 'shootout-loss': '🕳' };
 const SHORT = { police: 'CLOSED', mayor: '×2', gang: 'GANG', squatters: 'SQUATTERS', crime: '−40%', gift: '×3', 'shootout-win': '×1.5', 'shootout-loss': '×0.5' };
 
+// Station and utility rent (mirrors server.js): stations $50K x2 per extra one owned; a utility asks dice x $8K (one owned) or x $20K (both).
+export const RAIL_RENT = 50000, UTIL_RENT = [8000, 20000];
+export const railRent = n => RAIL_RENT * 2 ** (Math.max(1, n) - 1);
+export const utilPerPip = n => UTIL_RENT[n >= 2 ? 1 : 0];
+export const ownedOfType = (S, owner, type) => (S.board || []).filter(s => s.type === type && S.props[s.i] && S.props[s.i].owner === owner).length;
+
 // effects still running this round
 export const activeEffects = S => (S && Array.isArray(S.effects) ? S.effects : []).filter(e => e && (e.until == null || S.round < e.until));
 

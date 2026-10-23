@@ -13,6 +13,19 @@
 //   });
 // Styles are in style.css (.ew-*). Calling it again cancels a wheel still on screen.
 
+import { ms as slow } from './speed.js';
+import { ic, keyOfEmoji, iconDataUrl } from './icons.js';
+
+// the slice icons are the HUD's line icons (icons.js), drawn from small images; a slice repaints itself when its image has loaded
+const IMGS = {};
+function iconImg(icon, color) {
+  const key = ICON_KEY(icon); if (!key) return null;
+  const id = key + color;
+  if (!IMGS[id]) { const im = new Image(); im.src = iconDataUrl(key, color, 1.7); IMGS[id] = im; }
+  return IMGS[id];
+}
+const ICON_KEY = icon => (icon && /^[a-zA-Z]+$/.test(icon) ? icon : keyOfEmoji(icon));
+
 const TAU = 360;
 let current = null;
 
@@ -46,8 +59,11 @@ export function spinEventWheel({ segments, target, title = '', duration = 3800, 
   root.querySelector('.ew-title').textContent = title;
   const face = root.querySelector('.ew-face'), hi = root.querySelector('.ew-hi'), rot = root.querySelector('.ew-rot');
   const pointer = root.querySelector('.ew-pointer'), result = root.querySelector('.ew-result');
-  paint(face, list, arcs, size, false);
+  const late = new Set();
+  const drawFace = () => paint(face, list, arcs, size, false, late);
+  drawFace();
   paint(hi, list, arcs, size, idx);
+  late.forEach(im => im.addEventListener('load', drawFace, { once: true }));
   host.appendChild(root);
 
   // where the wheel must stop: the target slice's middle (a little off-centre, so it never looks rigged) under the pointer
@@ -81,7 +97,7 @@ export function spinEventWheel({ segments, target, title = '', duration = 3800, 
   current = handle;
 
   requestAnimationFrame(() => root.classList.add('in'));
-  const t0 = performance.now() + 250;                    // let the overlay fade in before the wheel moves
+  const t0 = performance.now() + slow(250);                    // let the overlay fade in before the wheel moves
   let fired = 0;
   const frame = now => {
     if (done) return;
@@ -92,11 +108,11 @@ export function spinEventWheel({ segments, target, title = '', duration = 3800, 
     if (q < 1) { raf = requestAnimationFrame(frame); return; }
     setRot(final);
     root.classList.add('stopped');
-    result.textContent = (list[idx].icon ? list[idx].icon + '  ' : '') + list[idx].label;
+    result.innerHTML = (ICON_KEY(list[idx].icon) ? ic(ICON_KEY(list[idx].icon)) : '') + `<span>${String(list[idx].label).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span>`;
     result.dataset.tone = list[idx].tone || 'neutral';
     if (onTick) onTick(true);
     if (onStop) onStop(list[idx]);
-    setTimeout(finish, 1500);                            // the highlight, a beat for the eye, then hand over
+    setTimeout(finish, slow(1500));                            // the highlight, a beat for the eye, then hand over
   };
   raf = requestAnimationFrame(frame);
   return promise;
@@ -105,7 +121,7 @@ export function spinEventWheel({ segments, target, title = '', duration = 3800, 
 const TONE = { good: '#d4af5a', bad: '#a8322a', neutral: '#efe4c8' };
 
 // draw the wheel (hl === false) or just the winning slice's glow (hl === its index)
-function paint(canvas, list, arcs, size, hl) {
+function paint(canvas, list, arcs, size, hl, late) {
   const dpr = Math.min(2, window.devicePixelRatio || 1), px = Math.round(size * dpr);
   canvas.width = canvas.height = px;
   const g = canvas.getContext('2d'), m = px / 2, k = px / 440;
@@ -151,12 +167,17 @@ function paint(canvas, list, arcs, size, hl) {
     const mid = arcs[i].mid, narrow = arcs[i].a1 - arcs[i].a0 < 38;
     g.save(); g.translate(m, m); g.rotate(mid * Math.PI / 180);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    if (s.icon) { g.font = `${(narrow ? 22 : 30) * k}px serif`; g.fillText(s.icon, 0, -168 * k); }
+    const im = iconImg(s.icon, '#efe4c8');
+    if (im) {
+      const d = (narrow ? 22 : 29) * k;
+      if (im.complete && im.naturalWidth) { g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 4 * k; g.drawImage(im, -d / 2, -178 * k - d / 2, d, d); g.shadowBlur = 0; }
+      else if (late) late.add(im);
+    }
     // the label runs along the radius, reading outward-in from the rim; shrink to fit
     let size2 = (narrow ? 15 : 19) * k;
     const text = String(s.label || '').toUpperCase();
     g.font = `600 ${size2}px Oswald, "Arial Narrow", sans-serif`;
-    const maxLen = 108 * k, wdt = g.measureText(text).width;
+    const maxLen = 94 * k, wdt = g.measureText(text).width;
     if (wdt > maxLen) { size2 *= maxLen / wdt; g.font = `600 ${size2}px Oswald, "Arial Narrow", sans-serif`; }
     g.rotate(-Math.PI / 2);
     g.fillStyle = '#efe4c8'; g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 4 * k;

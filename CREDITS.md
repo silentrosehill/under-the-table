@@ -122,6 +122,51 @@ with no third-party assets, under the same license as the project.
 | Fredoka | SIL Open Font License 1.1 |
 | Nunito | SIL Open Font License 1.1 |
 
+## Sound (`public/assets/sfx/`)
+
+The recorded sound effects are short clips cut, normalised and re-encoded (mono mp3) from the sources below; nothing was
+otherwise altered. Everything is CC0 or public domain, so no attribution is required, but it is given here. The room tone,
+the jazz record and the fallback version of every effect are synthesized in code (`public/sfx.js`).
+
+| Source (author) | Used for | Source URL | License |
+|---|---|---|---|
+| Casino Audio (Kenney) | dice, chips, card slides, flips, shuffle | https://kenney.nl/assets/casino-audio | CC0 |
+| Impact Sounds (Kenney) | die hits, wood/metal/glass impacts, footsteps | https://kenney.nl/assets/impact-sounds | CC0 |
+| Interface Sounds (Kenney) | pop | https://kenney.nl/assets/interface-sounds | CC0 |
+| RPG Audio (Kenney) | coins, stamps (book thud), doors, creaks, cloth, latch | https://kenney.nl/assets/rpg-audio | CC0 |
+| UI Audio (Kenney) | wheel ticks, button rollover | https://kenney.nl/assets/ui-audio | CC0 |
+| 100 CC0 metal and wood SFX (rubberduck) | hammering, keys | https://opengameart.org/content/100-cc0-metal-and-wood-sfx | CC0 |
+| 100 CC0 SFX #2 (rubberduck) | construction-site bed | https://opengameart.org/content/100-cc0-sfx-2 | CC0 |
+| 75 CC0 breaking / falling / hit sfx (rubberduck) | rubble, collapsing wood | https://opengameart.org/content/75-cc0-breaking-falling-hit-sfx | CC0 |
+| 202 More Sound Effects (OwlishMedia) | banknotes and coins, drinking, spray can | https://opengameart.org/content/202-more-sound-effects | CC0 |
+| Various Paper Sound Effects (Luckius) | paper, envelopes | https://opengameart.org/content/various-paper-sound-effects | CC0 |
+| Typewriter sounds (Cassie / orbitgames) | button clicks, audit typing | https://opengameart.org/content/typewriter-sounds | CC0 |
+| Door Lock Sounds (cough-e) | cell door lock | https://opengameart.org/content/door-lock-sounds | CC0 |
+| Iron Door (TheMightyGlider) | cell door | https://opengameart.org/content/iron-door | CC0 |
+| Camera (TheMightyGlider) | camera flash | https://opengameart.org/content/camera | CC0 |
+| Door Open, Door Close Set (qubodup) | eviction door slam | https://opengameart.org/content/door-open-door-close-set | CC0 |
+| Crash Collision (qubodup) | building collapse | https://opengameart.org/content/crash-collision | CC0 |
+| Car_door_SFX (looneybits) | car door (police protection, taxi) | https://opengameart.org/content/cardoorsfx | CC0 |
+| Explosions (ezduzziteh) | the bombing | https://opengameart.org/content/explosions-4 | CC0 |
+| Gunshots (kurt) | shoot-out | https://opengameart.org/content/gunshots | CC0 |
+| Gunshot sound effect (hingydunyas) | shoot-out | https://opengameart.org/content/gunshot-sound-effect | CC0 |
+| Sirens and Alarm Noise (aquinn) | police, crime wave | https://opengameart.org/content/sirens-and-alarm-noise | CC0 |
+| Applause in a large hall or church (expl0it3r) | applause | https://opengameart.org/content/applause-in-a-large-hall-or-church | CC0 |
+| Crowd Shouting/Speaking Ambience (starninjas) | economic boom crowd | https://opengameart.org/content/crowd-shoutingspeaking-ambience | CC0 |
+| Classic fanfare lick (fvcalderan) | fanfares (win, mayor, gift) | https://opengameart.org/content/classic-fanfare-lick | CC0 |
+| Game Over Trumpet SFX (0new4y) | bankruptcy | https://opengameart.org/content/game-over-trumpet-sfx | CC0 |
+| Mystery Sting (railkill) | the Family | https://opengameart.org/content/mystery-sting | CC0 |
+| Horror Hit Soundpack 1 (psychhead) | low hits (chaos, gang, police) | https://opengameart.org/content/horror-hit-soundpack-1 | CC0 |
+| Evil Laugh, Evil Laugh 2 (antumdeluge) | Billionaire's Whim, Shady Billionaire | https://opengameart.org/content/evil-laugh, https://opengameart.org/content/evil-laugh-2 | CC0 |
+| Vinyl (aidanwalker) | the needle coming down on the record | https://opengameart.org/content/vinyl | CC0 |
+| Glass Break (tinyworlds) | breaking glass | https://opengameart.org/content/glass-break | CC0 |
+| glass bottle (open & close) (sinny) | bottle set down | https://opengameart.org/content/glass-bottle-open-close | CC0 |
+| Cash register (Wikimedia Commons) | cash register | https://commons.wikimedia.org/wiki/File:Cash_register.ogg | Public domain |
+| Car Horn (15HPanska_Ruttner_Jan, Wikimedia Commons) | taxi horn | https://commons.wikimedia.org/wiki/File:Car_Horn.wav | CC0 |
+| American police siren i (lezer, Wikimedia Commons) | police | https://commons.wikimedia.org/wiki/File:American_police_siren_i.ogg | Public domain |
+| Gunshots 8 (aradlaw, Wikimedia Commons) | shoot-out | https://commons.wikimedia.org/wiki/File:Gunshots_8.ogg | Public domain |
+| Explosion 10 (tcpp, Wikimedia Commons) | Gang War | https://commons.wikimedia.org/wiki/File:Explosion_10.ogg | Public domain |
+
 ## Code libraries
 
 - cannon-es 0.20 (MIT) — dice physics, loaded from jsDelivr.

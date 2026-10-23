@@ -14,6 +14,7 @@ export function setLang(l) {
 export const onLang = f => listeners.push(f);
 
 const FR = {
+  'AUDIT': 'CONTRÔLE', 'SEIZED': 'SAISI',
   // top bar, join, lobby
   'the back room': 'l’arrière-salle', 'Graphics': 'Graphismes', 'Language': 'Langue', 'Volume': 'Volume', 'Record': 'Disque',
   'Mute': 'Couper', 'Unmute': 'Rétablir', 'Record off': 'Arrêter le disque', 'Record on': 'Lancer le disque', 'muted': 'coupé', 'off': 'arrêté',
@@ -24,6 +25,10 @@ const FR = {
   'Players': 'Joueurs', 'Add a bot': 'Ajouter un bot', 'Shuffle teams': 'Mélanger les équipes', 'Your token': 'Ton pion', 'Your color': 'Ta couleur',
   'Map': 'Plateau', 'Team rules': 'Règles d’équipe', 'Money transfer fee': 'Frais de transfert', 'Teammates pay each other': 'Entre coéquipiers on paie',
   'full rent': 'le loyer complet', 'half rent': 'la moitié du loyer', 'no rent': 'aucun loyer', 'Rules': 'Règles', 'Starting cash': 'Argent de départ',
+  'Game speed': 'Vitesse de jeu', 'Relaxed': 'Tranquille', 'Normal': 'Normale', 'Fast': 'Rapide',
+  'Squatters can be evicted after one full turn of yours': 'Les squatteurs ne peuvent être expulsés qu’après un tour complet à toi',
+  'How fast the game plays: Relaxed, Normal or Fast.': 'Vitesse de la partie : tranquille, normale ou rapide.',
+  'Chosen by the host in the lobby. Relaxed (the default) gives every move, dice roll, card, wheel, pop-up and bot turn about 60% more time. Normal is the original pace. Fast is about a third quicker. It never changes the rules or the odds.': 'Choisie par l’hôte dans le salon. Tranquille (par défaut) laisse environ 60 % de temps en plus à chaque déplacement, lancer de dés, carte, roue, fenêtre et tour de bot. Normale est le rythme d’origine. Rapide est environ un tiers plus vif. Cela ne change jamais les règles ni les probabilités.', 'Only the host can change it, before the game starts.': 'Seul l’hôte peut la changer, avant le début de la partie.',
   'Game length': 'Durée', 'until bankruptcy': 'jusqu’à la faillite', '20 rounds (quick)': '20 tours (rapide)', '30 rounds': '30 tours', '50 rounds': '50 tours',
   'Chaos events (random twists every few rounds)': 'Événements chaos (rebondissements aléatoires)', 'Taxi Company jackpot (taxes & fines pile up)': 'Cagnotte de la compagnie de taxis (taxes et amendes s’accumulent)',
   'Start game': 'Lancer la partie', 'Leave': 'Partir', 'Join': 'Rejoindre', 'Empty seat': 'Place libre', '1 seat left': '1 place libre',
@@ -41,7 +46,7 @@ const FR = {
   // game HUD
   'Send a reaction': 'Envoyer une réaction', 'Camera follows the action': 'La caméra suit l’action', 'Reset camera': 'Recentrer la caméra',
   'Record player on/off': 'Tourne-disque', 'Log & chat': 'Journal et discussion', 'Quit or end the game': 'Quitter ou finir la partie',
-  'Say something…': 'Écris quelque chose…', 'Send': 'Envoyer', 'OK': 'OK', 'Free camera': 'Caméra libre', 'Cinematic': 'Cinéma', 'Fixed': 'Fixe', 'Camera: Fixed': 'Caméra : fixe', 'Camera: Cinematic': 'Caméra : cinéma', 'Camera mode': 'Mode caméra', 'Switch between the cinematic and the fixed camera.': 'Alterne entre la caméra cinéma et la caméra fixe.',
+  'Say something…': 'Écris quelque chose…', 'Send': 'Envoyer', 'OK': 'OK', 'Free camera': 'Caméra libre', 'Cinematic': 'Cinéma', 'Fixed': 'Fixe', 'Camera: Fixed': 'Caméra : fixe', 'Camera: Cinematic': 'Caméra : cinéma', 'Top-down': 'Plongée', 'Camera: Top-down': 'Caméra : plongée', 'Camera mode': 'Mode caméra', 'Switch between the cinematic and the fixed camera.': 'Alterne entre la caméra cinéma et la caméra fixe.',
   'Cinematic follows the action; Fixed keeps the whole board in view.': 'Cinéma suit l’action ; Fixe garde tout le plateau en vue.',
   'Cinematic: the camera follows the tokens, pushes in on the dice and closes up on big moments. Fixed: the camera stays on your seat view of the whole board and never moves by itself. You can still orbit and zoom by hand, and the reset button brings you back to the fixed view. Only for you.': 'Cinéma : la caméra suit les pions, se rapproche des dés et zoome sur les grands moments. Fixe : la caméra reste sur ta vue du plateau entier depuis ta place et ne bouge jamais seule. Tu peux toujours tourner et zoomer à la main, et le bouton de recentrage te ramène à la vue fixe. Pour toi seulement.',
   'Saved on this device.': 'Enregistré sur cet appareil.', 'Change it here at any time.': 'Modifie-le ici à tout moment.', 'Only you.': 'Toi seulement.',
@@ -89,7 +94,7 @@ const FR = {
   'Share to mate': 'Part pour l’équipier', 'On your turn': 'À ton tour', '{a} {x} · {b} {y}': '{a} {x} · {b} {y}', 'Rent {total} → {a} {x} · {b} {y}': 'Loyer {total} → {a} {x} · {b} {y}',
   '{a} paid {amount} to {b}': '{a} paie {amount} à {b}', '{a} drew {card}': '{a} tire « {card} »', 'Lv {n}': 'Niv. {n}', 'MAX': 'MAX',
   'Corner': 'Coin', 'Card': 'Carte', 'For sale': 'À vendre', 'Unowned': 'Libre', 'Yours': 'À toi', 'Owned by {name}': 'Appartient à {name}', 'Mortgaged': 'Hypothéquée',
-  'Rent here: {amount}': 'Loyer ici : {amount}', 'Rent here: {n}× the dice': 'Loyer ici : {n}× les dés', 'Rent {amount} · ×1.5 with the full set': 'Loyer {amount} · ×1,5 avec le groupe complet',
+  'Rent here: {amount}': 'Loyer ici : {amount}', 'Rent here: {amount} × the dice': 'Loyer ici : {amount} × les dés', '{amount} × dice': '{amount} × les dés', '{amount} × DICE': '{amount} × DÉS', 'Rent {amount} · ×1.5 with the full set': 'Loyer {amount} · ×1,5 avec le groupe complet',
   'Need {amount} more': 'Il manque {amount}', 'Reach level 4 first': 'Atteins d’abord le niveau 4', 'Buy · Level 1 — {price}': 'Acheter · Niveau 1 — {price}', 'Level {n} — {price}': 'Niveau {n} — {price}',
   '{lvl} — {cost} · rent {rent}': '{lvl} — {cost} · loyer {rent}', 'Buy out {tile} from {owner} — {cost}': 'Racheter {tile} à {owner} — {cost}', 'Upgrade {name}?': 'Améliorer {name} ?',
   'Skip': 'Ignorer', 'Buy out {name}?': 'Racheter {name} ?', 'No thanks': 'Non merci', '{lvl} now · upgrade cost {cost} per level': '{lvl} actuellement · amélioration {cost} par niveau',
@@ -135,9 +140,9 @@ const FR = {
   // the Mafia loan
   'Borrow from the Mafia (a loan when you are in debt)': 'Emprunter à la mafia (un prêt quand tu es endetté)', 'Loan amount': 'Montant du prêt', 'Turns to repay': 'Tours pour rembourser', 'Total interest': 'Intérêts totaux',
   'A Favour': 'Un service', 'The Family can help. For a price.': 'La Famille peut t’aider. Moyennant finance.', 'Borrow from the Mafia': 'Emprunter à la mafia',
-  'You get {amount} now': 'Tu reçois {amount} tout de suite', 'You owe {due} ({pct}% interest)': 'Tu dois {due} ({pct} % d’intérêts)', 'Repay within {n} of your turns': 'Rembourse en {n} de tes tours',
+  'You owe {due}': 'Tu dois {due}', 'Interest': 'Intérêts', 'Borrow {amount} for {n} turns → repay {due} ({pct}%)': 'Emprunter {amount} pour {n} tours → rembourser {due} ({pct} %)', 'This amount does not cover your debt.': 'Ce montant ne couvre pas ta dette.',
   'Miss it and they take your best property.': 'Sinon, ils prennent ta meilleure propriété.', 'Loans taken: {n} of 2': 'Prêts pris : {n} sur 2', 'Walk away': 'Partir', 'Take the money': 'Prendre l’argent',
-  'Borrow {amount} from the Mafia — repay {due} in {n} turns': 'Emprunter {amount} à la mafia — rembourser {due} en {n} tours',
+  
   'Repay the Mafia': 'Rembourser la mafia', 'Only on your turn.': 'Seulement à ton tour.', 'Finish your move first.': 'Termine d’abord ton coup.', 'You have no cash to repay with.': 'Tu n’as pas de liquide pour rembourser.',
   'You owe {due}. You have {cash}.': 'Tu dois {due}. Tu as {cash}.', 'left': 'restants', 'You pay': 'Tu paies', 'Still owed': 'Reste dû', 'Pay it all ({amount})': 'Tout payer ({amount})',
   'You can only pay part of it for now.': 'Tu ne peux en payer qu’une partie pour l’instant.',
@@ -188,7 +193,7 @@ const FR_INFO = {
   "Owners of tiles in that district (the global wheel hits each player's main district).": 'Les propriétaires de cases de ce quartier (la roue globale vise le quartier principal de chacun).',
   'Squatters': 'Squatteurs', 'Squatters take one of your tiles. No rent for 3 rounds.': 'Des squatteurs prennent une de tes cases. Aucun loyer pendant 3 tours.',
   'Squatters moved into this tile: it earns no rent while they stay.': 'Des squatteurs se sont installés sur cette case : elle ne rapporte rien tant qu’ils y restent.',
-  '3 rounds.': '3 tours.', "Evict them from the tile's deed on your turn (a quarter of the tile's value) — or wait it out. A recent eviction doubles a Shady Billionaire payout.": 'Expulse-les depuis le titre de la case à ton tour (un quart de la valeur de la case) — ou attends. Une expulsion récente double le gain d’un Milliardaire louche.',
+  '3 rounds.': '3 tours.', "Evict them from the tile's deed on your turn (half the tile's value), once one full turn of yours has passed since they arrived — or wait it out. A recent eviction doubles a Shady Billionaire payout.": 'Expulse-les depuis le titre de la case à ton tour (la moitié de la valeur de la case), une fois qu’un tour complet à toi s’est écoulé depuis leur arrivée — ou attends. Une expulsion récente double le gain d’un Milliardaire louche.',
   'The tile owner loses the rent.': 'Le propriétaire perd le loyer.',
   'Crime wave': 'Vague de crime', 'Rents −40% on {tile} · {left}': 'Loyers −40 % sur {tile} · {left}',
   'A crime wave scares the customers away: rents on the affected tiles drop (by 40%) for a few rounds.': 'Une vague de crime fait fuir les clients : les loyers des cases touchées baissent de 40 % pendant quelques tours.',
@@ -218,7 +223,7 @@ const FR_INFO = {
   'Until played.': 'Jusqu’à ce qu’elles soient jouées.', 'Play them on your own turn.': 'Joue-les à ton tour.',
   'Your hand': 'Ta main', '{n} cards — click to open your hand.': '{n} cartes — clique pour ouvrir ta main.', 'The cards you kept. Open your hand on your own turn to play one. Others only see how many you hold.': 'Les cartes que tu gardes. Ouvre ta main à ton tour pour en jouer une. Les autres voient seulement combien tu en as.', 'You.': 'Toi.',
   'Mafia loan': 'Prêt de la mafia', '{due} due · {left}': '{due} dus · {left}', '{due} due · {left} — click to repay.': '{due} dus · {left} — clique pour rembourser.',
-  'You borrowed from the Mafia. Repay before the deadline: when it hits zero the family collects what you still owe — taking cash, then your best tile, or knocking you out if you own nothing.': 'Tu as emprunté à la mafia. Rembourse avant l’échéance : à zéro, la famille encaisse ce que tu dois — ton argent, puis ta meilleure case, ou ton élimination si tu ne possèdes rien.',
+  'You borrowed from the Mafia on terms you chose (interest = 10% + 4% × turns + 2% per $250K). Repay before the deadline: when it hits zero the family collects what you still owe — taking cash, then your best tile, or knocking you out if you own nothing.': 'Tu as emprunté à la mafia aux conditions que tu as choisies (intérêts = 10 % + 4 % × tours + 2 % par 250 K$). Rembourse avant l’échéance : à zéro, la famille encaisse ce que tu dois — ton argent, puis ta meilleure case, ou ton élimination si tu ne possèdes rien.',
   'A fixed number of your turns.': 'Un nombre fixe de tes tours.', 'Repay (in full or in part) from the repay window.': 'Rembourse (en totalité ou en partie) depuis la fenêtre de remboursement.', 'This player only.': 'Ce joueur seulement.',
   'Click the slot on your turn to repay, in full or in part.': 'Clique sur l’emplacement à ton tour pour rembourser, en totalité ou en partie.',
   'Whose turn': 'À qui le tour', "{name}'s turn.": 'Tour de {name}.', 'The highlighted panel is the player who is on the move. Everybody else waits (and can still trade or chat).': 'Le panneau en surbrillance est celui du joueur qui joue. Les autres attendent (ils peuvent encore échanger ou discuter).',
@@ -256,17 +261,18 @@ const FR_INFO = {
   'Switched off in this lobby. When on, it hits every player: eleven events, all equally likely (about 9% each).': 'Désactivée dans ce salon. Quand elle est active, elle frappe chaque joueur : onze événements équiprobables (environ 9 % chacun).',
   'Borrow from the Mafia': 'Emprunter à la mafia', 'ON': 'ACTIVÉ', 'OFF': 'DÉSACTIVÉ',
   'When your cash is below zero and the loan would cover the debt, the family offers you cash. You may borrow twice per game, one loan at a time. Repay before the deadline: otherwise they take your cash, then your best tile, or knock you out if you own nothing.': 'Quand ton argent passe sous zéro et que le prêt couvre la dette, la famille te propose de l’argent. Deux prêts par partie, un à la fois. Rembourse avant l’échéance : sinon ils prennent ton argent, puis ta meilleure case, ou t’éliminent si tu ne possèdes rien.',
-  'This lobby: borrow {amount}, repay {due} ({pct}% interest) within {n} turns.': 'Dans ce salon : emprunte {amount}, rembourse {due} ({pct} % d’intérêts) en {n} tours.',
-  'Not enabled in this lobby (host setting “Borrow from the Mafia”). It would be {amount}, repay {due} within {n} turns.': 'Pas activé dans ce salon (réglage de l’hôte « Emprunter à la mafia »). Ce serait {amount}, à rembourser {due} en {n} tours.',
+  'You choose the terms when you borrow: $200K to $3M (in $50K steps, at least enough to cover your debt) and 3 to 10 turns to repay.': 'Tu choisis les conditions en empruntant : de 200 K$ à 3 M$ (par pas de 50 K$, au moins de quoi couvrir ta dette) et 3 à 10 tours pour rembourser.',
+  'Interest = 10% + 4% × turns + 2% per $250K borrowed. Example: $1M for 5 turns → repay $1.38M (38%).': 'Intérêts = 10 % + 4 % × tours + 2 % par tranche de 250 K$ empruntée. Exemple : 1 M$ pour 5 tours → rembourser 1,38 M$ (38 %).',
+  'Not enabled in this lobby (host setting “Borrow from the Mafia”).': 'Pas activé dans ce salon (réglage de l’hôte « Emprunter à la mafia »).',
   'Hover any icon in the game for a quick hint, click it for the full story.': 'Survole une icône du jeu pour un indice rapide, clique dessus pour toute l’explication.',
   // card long texts
   'Kept in your hand. On your turn, pay a gang (the price is printed on the card) to wreck 1 to 3 levels of a rival tile at level 2–4. If that tile is secretly protected, there is a shootout instead.': 'Reste en main. À ton tour, paie un gang (le prix est écrit sur la carte) pour détruire 1 à 3 niveaux d’une case rivale de niveau 2–4. Si la case est protégée en secret, il y a une fusillade à la place.',
-  'Kept in your hand. Squatters move into one rival tile: it earns no rent for 3 rounds, unless the owner pays to evict them.': 'Reste en main. Des squatteurs s’installent sur une case rivale : aucun loyer pendant 3 tours, sauf si le propriétaire paie pour les expulser.',
+  'Kept in your hand. Squatters move into one rival tile: it earns no rent for 3 rounds, unless the owner pays to evict them (half the tile\'s value, and only after one full turn of theirs has passed).': 'Reste en main. Des squatteurs s’installent sur une case rivale : aucun loyer pendant 3 tours, sauf si le propriétaire paie pour les expulser (la moitié de la valeur de la case, et seulement après un tour complet à lui).',
   'Kept in your hand. Secretly guard one of your tiles: if a rival hires a gang against it, the gang meets the police in a shootout (win: rent ×1.5, loss: rent ×0.5, for 5 rounds).': 'Reste en main. Protège en secret une de tes cases : si un rival engage un gang contre elle, le gang affronte la police dans une fusillade (victoire : loyer ×1,5, défaite : loyer ×0,5, pendant 5 tours).',
   'Played at once. Pick one of your tiles: it earns triple rent until your next turn.': 'Jouée aussitôt. Choisis une de tes cases : elle rapporte le triple jusqu’à ton prochain tour.',
   'Played at once. A shady billionaire hands you {c300} — double ({c600}) if you evicted squatters in the last 3 rounds.': 'Jouée aussitôt. Un milliardaire louche te remet {c300} — le double ({c600}) si tu as expulsé des squatteurs ces 3 derniers tours.',
   'Played at once. Pick an opponent: the captain takes the envelope and they go straight to jail. Casino deck only.': 'Jouée aussitôt. Choisis un adversaire : le capitaine prend l’enveloppe et il file droit en prison. Paquet casino uniquement.',
-  'Bad luck. Squatters take over one of your tiles: no rent for 3 rounds, unless you pay to evict them. Under the Table only.': 'Pas de chance. Des squatteurs prennent une de tes cases : aucun loyer pendant 3 tours, sauf si tu paies pour les expulser. Sous la table uniquement.',
+  'Bad luck. Squatters take over one of your tiles: no rent for 3 rounds, unless you pay to evict them (half the tile\'s value, and only after one full turn of yours has passed). Under the Table only.': 'Pas de chance. Des squatteurs prennent une de tes cases : aucun loyer pendant 3 tours, sauf si tu paies pour les expulser (la moitié de la valeur de la case, et seulement après un tour complet à toi). Sous la table uniquement.',
   'Bad luck. A crime wave cuts your rents by 40% on one district (once in ten, the whole city) for 3 rounds. You may pay the police to clear it — then the taxman audits you for 5 rounds. Under the Table only.': 'Pas de chance. Une vague de crime réduit tes loyers de 40 % sur un quartier (une fois sur dix, toute la ville) pendant 3 tours. Tu peux payer la police pour l’effacer — le fisc te contrôle alors pendant 5 tours. Sous la table uniquement.',
   // casino wheel
   "Billionaire’s Whim": 'Caprice du milliardaire', 'The player who spun gets a windfall.': 'Le joueur qui a lancé la roue reçoit une manne.', 'The player who spun the wheel receives a quarter of their own cash (at least {c50}).': 'Le joueur qui a lancé la roue reçoit le quart de son propre argent (au moins {c50}).',
@@ -288,6 +294,79 @@ const FR_INFO = {
   'Police Protection': 'Protection de la police', 'Every player secretly gets police protection on one of their tiles.': 'Chaque joueur reçoit en secret la protection de la police sur une de ses cases.',
 };
 Object.assign(FR, { ...FR_INFO, ...FR });   // earlier entries win
+// the hover bubble over a square (hovercard.js)
+for (const [k, v] of Object.entries({ 'Rent': 'Loyer', 'Call a cab: ride to any square next turn.': 'Appelle un taxi : file où tu veux au prochain tour.' })) if (!(k in FR)) FR[k] = v;
+
+// HUD v2: settings panel, what's new, announcer, side log, hover bubbles, lobby (never overrides an earlier entry)
+for (const [k, v] of Object.entries({
+  'Settings': 'Réglages', 'Display': 'Affichage', 'Sound': 'Son', 'Info': 'Infos', 'More': 'Plus', 'Top-down': 'Vue du dessus', 'Camera: Top-down': 'Caméra : vue du dessus',
+  'Table: the back-room board. City: the miniature noir city.': 'Table : le plateau de l’arrière-salle. Ville : la ville miniature en noir et blanc.',
+  'Sign density': 'Densité des enseignes', 'Quiet': 'Discret', 'All': 'Tout', 'Show every street label, or only the busy ones.': 'Afficher toutes les étiquettes, ou seulement les plus utiles.',
+  'Auto': 'Auto', 'High': 'Élevé', 'Medium': 'Moyen', 'Low': 'Bas', 'Lower it if the game stutters.': 'Baisse-le si le jeu saccade.',
+  'Broadcast look': 'Look télévision', '1960s black-and-white broadcast, with scanlines.': 'Télévision noir et blanc des années 60, avec lignes de balayage.',
+  'On': 'Oui', 'Off': 'Non', 'Reset': 'Réinitialiser', 'Mute everything': 'Tout couper', 'Record player': 'Tourne-disque', 'The background record player.': 'Le tourne-disque en fond sonore.',
+  'Announcer': 'Annonceur', 'Less': 'Moins', 'More': 'Plus', 
+  'What the plaque in the middle of the screen says: Less is money, property, jail and bankruptcy; More is every move.': 'Ce que dit la plaque au milieu de l’écran : Moins = argent, propriétés, prison et faillite ; Plus = chaque coup.',
+  'Side event log': 'Journal latéral', 'The last few events, down the left edge.': 'Les derniers événements, le long du bord gauche.',
+  'Hover bubbles': 'Bulles au survol', 'A small card over any square you rest the mouse on.': 'Une petite carte au-dessus de la case sur laquelle tu poses la souris.',
+  "What's new": 'Nouveautés', 'Versions, highlights and what is still being finished.': 'Versions, points forts et ce qui est en cours de finition.',
+  'In progress': 'En cours', 'Highlights': 'Points forts', 'Added': 'Ajouts', 'Changed': 'Changements', 'Bugs fixed': 'Corrections', 'Still being finished': 'En cours de finition', 'Loading…': 'Chargement…',
+  'Camera': 'Caméra', 'Reactions': 'Réactions', 'Log & chat': 'Journal et discussion', 'Quit': 'Quitter', 'What is this?': 'C’est quoi ?',
+  'Display, sound and information settings.': 'Réglages d’affichage, de son et d’information.',
+  'Open the settings': 'Ouvrir les réglages', 'Close': 'Fermer', 'Remove': 'Retirer',
+  'Cards ({n})': 'Cartes ({n})',
+  // patch notes (public/patchnotes.json)
+  'Under The Table': 'Under The Table', 'Privacy and packaging': 'Confidentialité et emballage', 'Desktop Edition': 'Édition bureau',
+  'The game is now called Under The Table.': 'Le jeu s’appelle désormais Under The Table.',
+  'Event animations, a centre announcer and a better-looking board.': 'Animations d’événements, un annonceur au centre et un plateau plus beau.',
+  'Choose your own Mafia loan terms.': 'Choisis toi-même les conditions de ton prêt de la Mafia.',
+  'Much faster and lighter: far fewer draw calls, smaller server updates, about 15 bug fixes.': 'Bien plus rapide et léger : beaucoup moins d’appels de dessin, des mises à jour serveur plus petites, une quinzaine de bugs corrigés.',
+  'The desktop app can now check for updates.': 'L’application de bureau peut maintenant chercher les mises à jour.',
+  'Event animations: casino spins, global wheel results, cards and rent now play out on the board.': 'Animations d’événements : tours de casino, résultats de la roue globale, cartes et loyers se jouent maintenant sur le plateau.',
+  'Centre announcer that tells you what just happened. Choose Less, Normal or More in the settings.': 'Un annonceur au centre te dit ce qui vient de se passer. Choisis Moins, Normal ou Plus dans les réglages.',
+  'Hover highlight and an info bubble on any tile, with reliable tile picking in both views.': 'Surbrillance et bulle d’info sur n’importe quelle case, avec un choix de case fiable dans les deux vues.',
+  'Player-chosen Mafia loan terms: when you go broke you pick the amount, the number of turns and the interest within the host limits.': 'Conditions du prêt de la Mafia choisies par le joueur : quand tu es à sec, tu choisis le montant, le nombre de tours et l’intérêt dans les limites de l’hôte.',
+  'Global wheel is now a 3D wheel that spins on the table.': 'La roue globale est maintenant une roue 3D qui tourne sur la table.',
+  'Road tiles in City Mode, with name plates and rent painted directly on the road.': 'Cases-routes en mode Ville, avec plaques de nom et loyer peints sur la chaussée.',
+  'Desktop app: Check for updates button, a quiet daily check at launch, and the current version shown in the launcher.': 'Application de bureau : bouton de recherche de mises à jour, vérification quotidienne discrète au lancement et version affichée dans le lanceur.',
+  'Renamed from Monopoly Party to Under The Table (app, window titles and docs).': 'Monopoly Party devient Under The Table (application, titres de fenêtre et docs).',
+  'Bigger board with more room between the tiles.': 'Plateau plus grand, avec plus de place entre les cases.',
+  'Taxi is now mandatory when you land on a taxi square.': 'Le taxi est désormais obligatoire quand on tombe sur une case taxi.',
+  'Casino events now affect only the player who landed there.': 'Les événements du casino ne touchent plus que le joueur qui est tombé dessus.',
+  'Performance pass: about 70 to 80% fewer draw calls, cached shadows and a fixed memory leak, so long games stay smooth.': 'Passe de performance : 70 à 80 % d’appels de dessin en moins, ombres mises en cache et fuite mémoire corrigée, pour des parties longues bien fluides.',
+  'Server efficiency: game updates are about 12 times smaller, which helps online play on slow connections.': 'Efficacité du serveur : les mises à jour de partie sont environ 12 fois plus petites, ce qui aide le jeu en ligne sur les connexions lentes.',
+  'About 15 bugs fixed across turns, events, rent and the 3D views, including tiles that were hard to click.': 'Une quinzaine de bugs corrigés dans les tours, les événements, les loyers et les vues 3D, dont des cases difficiles à cliquer.',
+  'Squatters: evicting them is delayed and costs twice as much.': 'Squatteurs : les expulser est retardé et coûte deux fois plus cher.',
+  'Station and utility rents doubled.': 'Loyers des gares et des services doublés.',
+  'Game speed in the lobby: Relaxed, Normal or Fast.': 'Vitesse de jeu dans le salon : Tranquille, Normale ou Rapide.',
+  'Sound revamp with recorded sounds.': 'Refonte du son avec des sons enregistrés.',
+  'HUD and icon revamp.': 'Refonte de l’interface et des icônes.',
+  'Token revamp.': 'Refonte des pions.',
+  'Top-down camera.': 'Caméra vue du dessus.',
+  'macOS: fix for the "app is damaged" message. The app is now ad-hoc signed; see DESKTOP.md for the first-launch steps.': 'macOS : correctif du message « l’app est endommagée ». L’app est maintenant signée ad hoc ; voir DESKTOP.md pour le premier lancement.',
+  'Fonts are bundled, so the game makes no requests to Google Fonts.': 'Les polices sont incluses : le jeu ne contacte plus Google Fonts.',
+  'Stricter privacy defaults for hosted games.': 'Réglages de confidentialité plus stricts pour les parties hébergées.',
+  'Custom gold-and-burgundy dice icon for macOS and Windows.': 'Icône de dés or et bordeaux pour macOS et Windows.',
+  'PRIVACY.md and a desktop guide (DESKTOP.md) with hosting details.': 'PRIVACY.md et un guide du bureau (DESKTOP.md) avec les détails d’hébergement.',
+  'Player reconnection tokens are sent in headers instead of the address.': 'Les jetons de reconnexion des joueurs passent par les en-têtes plutôt que par l’adresse.',
+  'API responses are no longer cached and referrers are suppressed.': 'Les réponses de l’API ne sont plus mises en cache et les référents sont supprimés.',
+  'Stricter static-file boundaries on the built-in server.': 'Limites plus strictes pour les fichiers statiques du serveur intégré.',
+  'Published source no longer includes local settings, logs, screenshots or raw asset downloads.': 'Les sources publiées n’incluent plus les réglages locaux, journaux, captures ni téléchargements bruts.',
+  'First desktop release for macOS Apple Silicon and Windows x64.': 'Première version de bureau pour macOS Apple Silicon et Windows x64.',
+  'Host on Wi-Fi or online with an invite link; friends join from the app or any browser.': 'Héberge en Wi-Fi ou en ligne avec un lien d’invitation ; les amis rejoignent depuis l’app ou n’importe quel navigateur.',
+  'Two ways to see the same game: the back-room table or a miniature noir city.': 'Deux façons de voir la même partie : la table de l’arrière-salle ou une ville miniature en noir et blanc.',
+  'Property game for 2 to 4 players with bots, online or on the same Wi-Fi, no accounts needed.': 'Jeu de propriétés pour 2 à 4 joueurs avec bots, en ligne ou sur le même Wi-Fi, sans compte.',
+  'Table Mode and City Mode, each with its own look and sound. Each player picks their own view.': 'Mode Table et mode Ville, chacun avec son look et son son. Chaque joueur choisit sa vue.',
+  'Property levels from L1 to Max with district rents, buyouts and set bonuses.': 'Niveaux de propriété de N1 à Max avec loyers de quartier, rachats et bonus de série.',
+  'Casino squares with event spins, plus a hand of attack and counter cards.': 'Cases casino avec tours d’événements, plus une main de cartes d’attaque et de contre.',
+  '2v2 team mode with adjustable rent sharing.': 'Mode équipes 2 contre 2 avec partage de loyer réglable.',
+  'Eight districts, each with its own buildings, street lamps and pavement.': 'Huit quartiers, chacun avec ses bâtiments, ses réverbères et son trottoir.',
+  'Global wheel that triggers a random city event every few rounds.': 'Roue globale qui déclenche un événement aléatoire tous les quelques tours.',
+  'Optional Mafia loan when you cannot pay a debt.': 'Prêt de la Mafia facultatif quand tu ne peux pas payer une dette.',
+  'Money shown in the $60K / $1.2M style; the host can set the starting cash.': 'Argent affiché au format 60 K$ / 1,2 M$ ; l’hôte règle l’argent de départ.',
+  'English and French.': 'Anglais et français.',
+  'Bundled server, graphics, physics, fonts and Cloudflare tunnel, so players need no extra install.': 'Serveur, graphismes, physique, polices et tunnel Cloudflare inclus : aucune installation supplémentaire.',
+})) if (!(k in FR)) FR[k] = v;
 
 // UI text: t('Buy for {price}', { price: '$200' })
 export function t(s, vars) {
@@ -310,7 +389,7 @@ const CHAOS_DESC = [
   [/^(.+) wins (.+)!$/, '$1 gagne $2 !'],
 ];
 const CARDS = [
-  [/^Advance to the nearest utility\. If owned, pay 10× the dice\.$/, 'Avance jusqu’à la compagnie la plus proche. Si elle a un propriétaire, paie 10× les dés.'],
+  [/^Advance to the nearest utility\. If owned, pay (.+) × the dice\.$/, 'Avance jusqu’à la compagnie la plus proche. Si elle a un propriétaire, paie $1 × les dés.'],
   [/^Advance to the nearest (.+)\. If owned, pay double rent\.$/, 'Avance jusqu’à la case « $1 » la plus proche. Si elle a un propriétaire, paie le double du loyer.'],
   [/^Advance to (.+)\. Collect (.+)\.$/, 'Avance jusqu’à $1. Touche $2.'],
   [/^Advance to (.+)\.$/, 'Avance jusqu’à $1.'],
@@ -510,5 +589,6 @@ export function applyStatic(root = document) {
   root.querySelectorAll('[data-i18n]').forEach(e => { e.dataset.i18n ||= e.textContent.trim(); e.textContent = t(e.dataset.i18n); });
   root.querySelectorAll('[data-i18n-ph]').forEach(e => { e.placeholder = t(e.dataset.i18nPh); });
   root.querySelectorAll('[data-i18n-title]').forEach(e => { e.title = t(e.dataset.i18nTitle); });
+  root.querySelectorAll('[data-i18n-aria]').forEach(e => { e.setAttribute('aria-label', t(e.dataset.i18nAria)); });
 }
 document.documentElement.lang = lang;

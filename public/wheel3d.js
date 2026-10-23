@@ -5,6 +5,9 @@
 //   scene.add(w); await w.show(500); await w.spinTo('boom', 5200, f => sfx.wheelTick(f)); await w.hide(500);
 // show/hide scale it up out of the board (and back); spinTo resolves once it has rested (after a small wobble).
 
+import { ms as slow } from './speed.js';
+import { keyOfEmoji, iconDataUrl } from './icons.js';
+
 const ease = k => 1 - Math.pow(1 - k, 3.4);
 const run = (ms, fn) => new Promise(res => {
   const t0 = performance.now();
@@ -14,7 +17,12 @@ const run = (ms, fn) => new Promise(res => {
 
 function faceTexture(THREE, segs) {
   const N = 1024, c = document.createElement('canvas'); c.width = c.height = N;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  // the segment icons are the HUD's line icons (icons.js); the face is painted again once they have loaded
+  const imgs = segs.map(s => { const k = keyOfEmoji(s.icon) || (/^[a-zA-Z]+$/.test(s.icon || '') ? s.icon : null); if (!k) return null; const im = new Image(); im.src = iconDataUrl(k, '#f2e8d0', 1.7); im.onload = () => { draw(); t.needsUpdate = true; }; return im; });
+  const draw = () => {
   const g = c.getContext('2d'), R = N / 2, n = segs.length, A = Math.PI * 2 / n;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, N, N);
   g.translate(R, R);
   segs.forEach((s, i) => {
     const a0 = i * A - Math.PI / 2, a1 = a0 + A;                  // clockwise from the top, as seen from above
@@ -26,14 +34,15 @@ function faceTexture(THREE, segs) {
     if (flip) g.rotate(Math.PI);
     const sgn = flip ? -1 : 1;
     g.textBaseline = 'middle'; g.textAlign = flip ? 'right' : 'left';
-    g.font = '58px "Apple Color Emoji","Segoe UI Emoji",sans-serif'; g.fillStyle = '#fff';
-    g.fillText(s.icon || '', sgn * R * 0.72, 0);
+    const im = imgs[i];
+    if (im && im.complete && im.naturalWidth) { g.drawImage(im, sgn * R * 0.72 + (flip ? -68 : 0), -34, 68, 68); }
     let px = 40; g.font = `600 ${px}px Oswald, "Helvetica Neue", sans-serif`;
     const maxW = R * 0.5; while (g.measureText(s.label).width > maxW && px > 20) g.font = `600 ${--px}px Oswald, "Helvetica Neue", sans-serif`;
     g.fillStyle = '#f2e8d0'; g.fillText(s.label, sgn * R * 0.2, 0);
     g.restore();
   });
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  };
+  draw();
   return t;
 }
 
@@ -75,7 +84,7 @@ export function makeWheel3D(THREE, segments) {
       const i = at(spin(d)); if (i !== last) { last = i; onTick && onTick(false); }
     }).then(() => {
       onTick && onTick(true);
-      return run(900, k => { disc.rotation.y = (end + Math.sin(k * 14) * (1 - k) * 2.2) * Math.PI / 180; root.rotation.z = Math.sin(k * 11) * (1 - k) * 0.012; });
+      return run(slow(900), k => { disc.rotation.y = (end + Math.sin(k * 14) * (1 - k) * 2.2) * Math.PI / 180; root.rotation.z = Math.sin(k * 11) * (1 - k) * 0.012; });
     });
   };
   return root;

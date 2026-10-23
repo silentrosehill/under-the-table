@@ -13,3 +13,16 @@ window.party.onStatus(async state => {
   $('lan').textContent = state.hostUrl ? 'On this Wi-Fi: ' + (await window.party.addresses()).join(' · ') : '';
   if (state.message === 'Ready to play.') disable(false);
 });
+let version = '';
+function showUpdate(r) {
+  const notes = $('update-notes'), get = $('get');
+  notes.hidden = get.hidden = true;
+  if (r.state === 'available') { $('update-msg').textContent = `Version v${r.latest} is available (you have v${r.current}).`; if (r.notes) { notes.textContent = r.notes; notes.hidden = false; } get.hidden = false; }
+  else if (r.state === 'current') $('update-msg').textContent = `You're up to date (v${r.current}).`;
+  else if (r.state === 'none') $('update-msg').textContent = `No published releases yet (you have v${version}).`;
+  else $('update-msg').textContent = r.error || 'Could not check for updates.';
+}
+window.party.version().then(v => { version = v; $('version').textContent = 'v' + v; });
+window.party.onUpdate(showUpdate);
+$('check').onclick = async () => { $('check').disabled = true; $('update-msg').textContent = 'Checking…'; try { showUpdate(await window.party.checkUpdate()); } catch { $('update-msg').textContent = 'Could not check for updates.'; } $('check').disabled = false; };
+$('get').onclick = () => window.party.openRelease();

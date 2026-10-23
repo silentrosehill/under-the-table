@@ -236,7 +236,7 @@ function drawPrint(g, W, ctx) {
   }
 
   // inner frame
-  const inner = (ctx.HALF - 1.6) * PX;
+  const inner = (ctx.HALF - 1.6 * (ctx.K || 1)) * PX;
   g.strokeStyle = INK; g.lineWidth = 6;
   g.strokeRect(W / 2 - inner, W / 2 - inner, inner * 2, inner * 2);
   drawCenterArt(g, W, PX, ctx);
@@ -280,13 +280,13 @@ function drawCenterArt(g, W, PX, ctx) {
   const { meta, decks } = ctx;
   const cx = W / 2;
   const at = v => cx + v * PX;
-  const inner = (ctx.HALF - 1.6) * PX;
+  const inner = (ctx.HALF - 1.6 * (ctx.K || 1)) * PX;
   g.strokeStyle = INK; g.lineWidth = 2;
   g.strokeRect(cx - inner + 26, cx - inner + 26, (inner - 26) * 2, (inner - 26) * 2);
 
   // title ribbon
-  const title = ((meta && meta.title) || 'Monopoly Party').toUpperCase();
-  const ty = at(-1.85);
+  const title = ((meta && meta.title) || 'Under The Table').toUpperCase();
+  const ty = at(-1.85 * (ctx.K || 1));
   g.save(); g.translate(cx, ty); g.rotate(-0.03);
   const rw = 2050, rh = 300;
   g.fillStyle = '#7d2a24';
@@ -316,7 +316,7 @@ function drawCenterArt(g, W, PX, ctx) {
     g.restore();
   }
   g.font = `500 40px ${COND}`; g.fillStyle = 'rgba(30,23,18,.75)';
-  g.fillText('PLAYED IN BACK ROOMS SINCE 1931  ·  ALL DEBTS ARE FINAL', cx, at(4.05));
+  g.fillText('PLAYED IN BACK ROOMS SINCE 1931  ·  ALL DEBTS ARE FINAL', cx, at(4.05 * (ctx.K || 1)));
 }
 
 // age the sheet: yellowed edges, rubbed-off ink at corners and edges, a fold crease, a stain
@@ -459,18 +459,18 @@ function makeDeck(dk) {
 
 // ------------------------------------------------------------------ the board
 
-export function createBoard({ board, meta, tileFrame, HALF, tex }) {
+export function createBoard({ board, meta, tileFrame, HALF, K = 1, tex }) {
   const S = 2 * HALF + 0.24;
   HALF_SIZE = S / 2;
   const group = new THREE.Group();
   const decks = [
-    { x: -2.75, z: 0.75, rot: 0, kind: 'chance', label: (meta && meta.chance) || 'Chance', color: '#B8433A' },
-    { x: 2.75, z: 0.75, rot: 0, kind: 'chest', label: (meta && meta.chest) || 'Community Chest', color: '#3B5694' },
+    { x: -2.75 * K, z: 0.75 * K, rot: 0, kind: 'chance', label: (meta && meta.chance) || 'Chance', color: '#B8433A' },
+    { x: 2.75 * K, z: 0.75 * K, rot: 0, kind: 'chest', label: (meta && meta.chest) || 'Community Chest', color: '#3B5694' },
   ];
 
   // the printed top sheet + its gloss/wear map, drawn once at 4K
   const W = 4096;
-  const ctx = { board, meta, tileFrame, S, HALF, decks };
+  const ctx = { board, meta, tileFrame, S, HALF, K, decks };
   const printCanvas = document.createElement('canvas'); printCanvas.width = printCanvas.height = W;
   const roughCanvas = document.createElement('canvas'); roughCanvas.width = roughCanvas.height = 1024;
   const pg = printCanvas.getContext('2d');
@@ -533,7 +533,7 @@ export function createBoard({ board, meta, tileFrame, HALF, tex }) {
     const pick = new THREE.Mesh(new THREE.PlaneGeometry(fr.w, fr.d), pickMat);
     pick.rotation.x = -Math.PI / 2; pick.position.y = 0.04; pick.userData.tile = sp.i;
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(fr.w - 0.04, fr.d - 0.04),
-      new THREE.MeshBasicMaterial({ color: '#ffcf8a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      new THREE.MeshBasicMaterial({ color: '#f0a83c', transparent: true, opacity: 0, depthWrite: false }));      // (normal blending: additive vanishes on the cream print)
     glow.rotation.x = -Math.PI / 2; glow.position.y = boardHeight(fr.pos.x, fr.pos.z) + 0.006;
     const bld = new THREE.Group();
     tg.add(pick, glow, bld);

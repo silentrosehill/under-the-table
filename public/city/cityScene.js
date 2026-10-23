@@ -9,30 +9,35 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPost } from '../post.js';
+import { disposeScene } from '../dispose.js';
 import { createRoom } from '../room.js';
 import { createProps, viewYaw } from '../props.js';
 import { createDice } from '../dice.js';
 import { makeWheel3D } from '../wheel3d.js';
-import { makePewterToken, setTokenEnvironment } from '../tokens.js';
+import { makePewterToken, setTokenEnvironment, createNameTag, TOKEN_TAG_Y } from '../tokens.js';
+import { fitTopDown, squarePoints } from '../topdown.js';
 import { BOARD_T } from '../board.js';
 import { sfx } from '../sfx.js';
-import { t as tr } from '../i18n.js';
+import { t as tr, lang } from '../i18n.js';
 import { fmtMoney } from '../money.js';
 import { preload, make, bake, groundClip } from './kit.js';
 import { tileFrame, lanePoint, roadPoint, yawOf, D, C, H, TW, ROAD, CARRIAGE, LOT, BASE_H, LANE } from './layout.js';
 import { DISTRICTS, districtOf, LANDMARKS, SPECIALS, slugName, modelList, placeAll, FAN } from './districts.js';
 import { createBubbles } from './bubbles.js';
 import { createPlates } from './plates.js';
+import { createHoverCard, hoverData, tileRent } from '../hovercard.js';
 import { createLife } from './life.js';
 import { ARCH } from './archetypes.js';
 import { LEVEL_ARCH } from './levels.js';
 import { buildCasino } from './casino.js';
 const CASINO_SIGNS = { 7: 'ACE CLUB', 22: 'CASINO', 36: 'ROYALE' };     // the neon over each casino square
 import { createTileFx } from './tilefx.js';
-import { effectMult, effectTags, tileEffects as tileEffectsOf } from '../effects.js';
+import { createFx3d } from '../fx3d.js';
+import { effectMult, effectTags, tileEffects as tileEffectsOf, utilPerPip } from '../effects.js';
+import { ms as slow } from '../speed.js';
 
 Object.assign(ARCH, LEVEL_ARCH);                   // the single-building levels of every district (bowery.js, london.js …)
-const S = 1.15;                                  // city units → table units (the plinth, 14.1 across, still sits inside the 30-deep table; was 1.04 before the squares got narrower)
+const S = 1.28;                                  // city units → table units (the plinth, 15.7 across, still sits inside the 30-deep table; props keep clear of it, see props.js; was 1.15, before that 1.04)
 const CS = TW;                                   // the buildings of a side square are scaled with its frontage (1 → TW): footprints keep their ratios and stay inside the lot
 const DEPTH_K = 0.8;                             // and squeezed front-to-back a little, so they stay clear of the name plates
 const KS = S / 0.9;                              // the camera moves were tuned at S = 0.9
@@ -40,7 +45,7 @@ const TABLE_Y = -BOARD_T - 0.003;                // the table top, as in Table M
 const PLINTH = 0.08;
 const KERB = -D / 2 + ROAD;                      // where a side square's lot starts (local z)
 const PLAZA_Y = BASE_H;                          // the square in the middle is level with the streets
-const TOKEN_S = 0.5;
+const TOKEN_S = 0.75;                            // a piece's size in the city (1.5x the old 0.5)
 const easeInOut = k => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2);
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -193,6 +198,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
   const room = createRoom(scene, renderer, { tableY: TABLE_Y });
   const post = createPost(renderer, scene, camera, { onShadowSize: size => room.setShadowSize(size) });
   room.envReady.then(setTokenEnvironment);
+  const baseExpo = renderer.toneMappingExposure;       // Top-down lifts it a little so the far rows stay readable
   let props = null, lastState = null, alive = true;
   Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f)))
     .catch(() => {}).then(() => { if (!alive) return; props = createProps(scene, { tableY: TABLE_Y }); if (lastState) props.sync(lastState); });
@@ -648,14 +654,10 @@ export function createCityScene(container, { onTileClick, onCard }) {
     const beam = makeSpots(f);
     lift.add(beam);
     const fxG = new THREE.Group(); fxG.position.copy(content.position); fxG.scale.copy(content.scale); lift.add(fxG);        // what is on its way out (the old building, scaffolding)
-    // an invisible box for the mouse
-    const pick = new THREE.Mesh(new THREE.BoxGeometry(f.w, 1.2, f.d), new THREE.MeshBasicMaterial({ visible: false }));
-    pick.position.y = 0.6; pick.userData.tile = i;
-    lift.add(pick);
     world.add(g);
     g.updateMatrix(); lift.updateMatrix(); content.updateMatrix();
     const toContent = new THREE.Matrix4().multiplyMatrices(g.matrix, new THREE.Matrix4().multiplyMatrices(lift.matrix, content.matrix)).invert();     // city space → the lot's own space
-    const tile = { toContent, i, sp, f, g, lift, rim, content, fxG, decorTall, occDecor, occGrowth: [], tallH: Math.max(0.3, ...occDecor.map(b => b.max.y)) + 0.05, tallOn: true, fade: { v: 1, want: false, until: 0, list: [], on: false, mats: new Map() }, anim: null, growthH: 1, growth: null, houses: -1, trim, band, ownMat, plate, pick, dist, palette: near.palette, glowKey, special, beam, beamOn: false, max: false,
+    const tile = { toContent, i, sp, f, g, lift, rim, content, fxG, decorTall, occDecor, occGrowth: [], tallH: Math.max(0.3, ...occDecor.map(b => b.max.y)) + 0.05, tallOn: true, fade: { v: 1, want: false, until: 0, list: [], on: false, mats: new Map() }, anim: null, growthH: 1, growth: null, houses: -1, trim, band, ownMat, plate, hl: 0, dist, palette: near.palette, glowKey, special, beam, beamOn: false, max: false,
       casino, fx: null, fxKey: '', owner: null, mortgaged: false, anchorLocal: new THREE.Vector3(), barrier: null, decorChimneys: chimneys };
     life.add(i, content, { lamps, signs, steam });
     if (casino) life.setHaze(i, casino.haze);
@@ -884,7 +886,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     if ((fadeFrameNo++ & 1) === 0) {                               // the visibility test every other frame
       city.worldToLocal(_cam.copy(camera.position));
       fadeTargets.length = 0;
-      for (const tk of tokens.values()) if (!tk.out) { fadeTargets.push(tk.g.position.clone().add(new THREE.Vector3(0, 0.04, 0)), tk.g.position.clone().add(new THREE.Vector3(0, 0.22, 0))); }
+      for (const tk of tokens.values()) if (!tk.out) { fadeTargets.push(tk.g.position.clone().add(new THREE.Vector3(0, 0.04, 0)), tk.g.position.clone().add(new THREE.Vector3(0, 0.34, 0))); }
       city.worldToLocal(_foc.copy(controls.target));
       let n = 0;
       for (const rp of roadPts) { if (n >= 14) break; if (Math.hypot(rp.x - _foc.x, rp.z - _foc.z) < 3.6) { fadeTargets.push(rp); n++; } }
@@ -927,37 +929,39 @@ export function createCityScene(container, { onTileClick, onCard }) {
   function makeToken(p) {
     const g = new THREE.Group();
     const body = new THREE.Group(); g.add(body);
-    const { group: piece, enamel, felt } = makePewterToken(p.token, p.color);
+    const { group: piece, ground, enamel, felt, hit } = makePewterToken(p.token, p.color);
     piece.scale.setScalar(TOKEN_S);
     piece.rotation.y = -Math.PI / 2;                  // figures face +x; here they face their heading (+z)
     body.add(piece);
+    ground.scale.setScalar(TOKEN_S);                  // the glow disc, contact shadow and hover proxy stay on the street
+    g.add(ground);
     if (p.token === 'car') {                          // headlights
-      for (const x of [-0.06, 0.06]) {
-        const hl = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshStandardMaterial({ color: '#2a2418', emissive: '#ffe2a8', emissiveIntensity: 4 }));
-        hl.position.set(x, 0.1, 0.17); body.add(hl);
+      for (const x of [-0.07, 0.07]) {
+        const hl = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), new THREE.MeshStandardMaterial({ color: '#2a2418', emissive: '#ffe2a8', emissiveIntensity: 4 }));
+        hl.position.set(x, 0.15, 0.27); body.add(hl);
       }
       const beam = new THREE.SpotLight('#ffe2a8', 0.5, 1.4, 0.5, 0.8, 1.5);
-      beam.position.set(0, 0.1, 0.15); beam.target.position.set(0, 0, 0.8);
+      beam.position.set(0, 0.15, 0.25); beam.target.position.set(0, 0, 0.9);
       body.add(beam, beam.target);
     }
-    // a pulsing glow in the player's colour under the base shows whose turn it is (as in Table Mode)
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.215, 40), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.004;
+    // a pulsing ring in the player's colour round the base shows whose turn it is (as in Table Mode)
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.37, 0.47, 40), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.007;
     g.add(ring);
-    g.traverse(o => { if (o.isMesh && o !== ring) o.castShadow = true; });
     city.add(g);
-    return { id: p.id, g, body, ring, enamel, felt, t: p.pos, target: p.pos, queue: [], anim: null, jailed: p.inJail, out: false, tile: p.pos, snap: true };
+    return { id: p.id, g, body, ring, hit, enamel, felt, t: p.pos, target: p.pos, queue: [], anim: null, jailed: p.inJail, out: false, tile: p.pos, snap: true, color: p.color, name: p.name, phase: tokens.size * 1.7 };
   }
 
   const restPos = new THREE.Vector3(), restHead = new THREE.Vector3(), Yax = new THREE.Vector3(0, 1, 0);
   function rest(tk, slot, count) {
     if (tk.jailed) {                                    // waiting in the jail yard
       const f = tileFrame(10);
-      restPos.set(-C / 2 + ROAD + 0.2 + slot * 0.2, BASE_H, -C / 2 + ROAD + 0.35).applyAxisAngle(Yax, f.rotY).add(f.pos);
+      restPos.set(-C / 2 + ROAD + 0.3 + (slot % 2) * 0.46, BASE_H, -C / 2 + ROAD + 0.35 + (slot >> 1) * 0.42).applyAxisAngle(Yax, f.rotY).add(f.pos);
       restHead.set(0, 0, 1).applyAxisAngle(Yax, f.rotY);
       return;
     }
-    lanePoint(tk.t + (slot - (count - 1) / 2) * 0.3, slot % 2 ? -LANE : LANE, restPos, restHead);
+    const corner = Math.round(tk.t) % 10 === 0;                                      // (the street bends there: a tile's length is shorter along the bend, so spread wider)
+    lanePoint(tk.t + (slot - (count - 1) / 2) * (corner ? 0.72 : 0.38), (slot % 2 ? -1 : 1) * LANE * (corner ? 2.3 : 1.1), restPos, restHead);      // fanned out in a zigzag so none hides another
   }
   function syncTokensToState() {
     if (!lastState) return;
@@ -970,9 +974,14 @@ export function createCityScene(container, { onTileClick, onCard }) {
 
   // ------------------------------------------------------------ quiet effects
   const tweens = [];
-  function tween(dur, update, done) { const tw = { t0: performance.now(), dur, update, done }; tweens.push(tw); return tw; }
+  // dur is stretched by the game speed; tweenRaw is for the per-frame smoke puffs, whose drift is counted in frames
+  function tween(dur, update, done) { return tweenRaw(slow(dur), update, done); }
+  function tweenRaw(dur, update, done) { const tw = { t0: performance.now(), dur, update, done }; tweens.push(tw); return tw; }
   const dotTex = canvasTex(64, (g, s) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, s, s); });
   const tileFx = createTileFx({ dot: dotTex, makeBeam, BASE_H, KERB, LOT });
+  // one-off event animations on a square (bombing, police, mayor, gang sweep …): fx3d.js, hosted in the tile's own (lifted) frame
+  const fx3d = createFx3d({ dot: dotTex, tween });
+  const fxHost = tile => ({ parent: tile.lift, y: BASE_H, cz: KERB + LOT / 2, w: tile.f.w - 0.08, d: LOT - 0.1, shake: (a, ms) => { tile.shake = { t0: performance.now(), ms, a }; } });
   function dust(tile, n = 8) {
     for (let k = 0; k < n; k++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: '#6b6359', transparent: true, depthWrite: false, opacity: 0.5 }));
@@ -980,7 +989,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
       s.scale.setScalar(0.1);
       tile.content.add(s);
       const v = new THREE.Vector3(rand(-0.1, 0.1), rand(0.05, 0.15), rand(-0.1, 0.1));
-      tween(1800, q => { s.position.addScaledVector(v, 0.016); s.scale.setScalar(0.1 + q * 0.3); s.material.opacity = 0.5 * (1 - q); }, () => { tile.content.remove(s); s.material.dispose(); });
+      tweenRaw(1800, q => { s.position.addScaledVector(v, 0.016); s.scale.setScalar(0.1 + q * 0.3); s.material.opacity = 0.5 * (1 - q); }, () => { tile.content.remove(s); s.material.dispose(); });
     }
   }
   function smokeAt(at, n = 12, color = '#5d5850') {
@@ -989,7 +998,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
       s.position.copy(at).add(new THREE.Vector3(rand(-0.4, 0.4), 0, rand(-0.4, 0.4)));
       fxGroup.add(s);
       const v = new THREE.Vector3(rand(-0.05, 0.05), rand(0.1, 0.25), rand(-0.05, 0.05));
-      tween(2600 + rand(0, 800), q => { s.position.addScaledVector(v, 0.016); s.scale.setScalar(0.15 + q * 0.5); s.material.opacity = Math.sin(Math.PI * q) * 0.35; }, () => { fxGroup.remove(s); s.material.dispose(); });
+      tweenRaw(2600 + rand(0, 800), q => { s.position.addScaledVector(v, 0.016); s.scale.setScalar(0.15 + q * 0.5); s.material.opacity = Math.sin(Math.PI * q) * 0.35; }, () => { fxGroup.remove(s); s.material.dispose(); });
     }
   }
   function emoteAbove(tk, text) {
@@ -999,7 +1008,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false, opacity: 0 }));
     s.renderOrder = 10;
     fxGroup.add(s);
-    tween(2600, q => { s.position.copy(tk.g.position).add(new THREE.Vector3(0, 0.45 + q * 0.3, 0)); s.scale.setScalar(0.3); s.material.opacity = Math.sin(Math.PI * q) * 0.95; },
+    tweenRaw(2600, q => { s.position.copy(tk.g.position).add(new THREE.Vector3(0, 0.72 + q * 0.3, 0)); s.scale.setScalar(0.3); s.material.opacity = Math.sin(Math.PI * q) * 0.95; },
       () => { fxGroup.remove(s); s.material.map.dispose(); s.material.dispose(); });
     sfx.pop();
   }
@@ -1007,29 +1016,123 @@ export function createCityScene(container, { onTileClick, onCard }) {
   // ------------------------------------------------------------ input
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let hovered = -1, selected = -1, targets = new Set();   // targets: squares a card can be played on (glow)
-  function pickTile(ev) {
+  // Picking looks at the ground first: the ray meets the street level and the point is mapped to the square whose footprint (lot + road) holds it,
+  // so a tall building in front of a square never steals the click from the square the cursor is on. Only when the ground under the cursor
+  // belongs to no square (the plaza, the plinth's edge) can a building win: pointing at a tower from the plaza side selects the tower's own square.
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hitPt = new THREE.Vector3();
+  const _bray = new THREE.Ray(), _bbox = new THREE.Box3(), _bwbox = new THREE.Box3(), _bh = new THREE.Vector3(), _binv = new THREE.Matrix4();
+  function buildingAt() {
+    let best = -1, bestD = Infinity;
+    for (const tile of tiles) {
+      const f = tile.f, key = tile.houses + '|' + (tile.growth ? 1 : 0);
+      if (tile.volKey !== key) {                                    // the height of what stands there, measured again only when it changes
+        tile.volKey = key;
+        _bwbox.setFromObject(tile.content);
+        tile.volH = Math.max(0.5, Math.min(4, (_bwbox.max.y - (city.position.y + BASE_H * S)) / S));
+      }
+      _bbox.min.set(-f.w / 2, 0, f.corner ? -f.d / 2 : KERB); _bbox.max.set(f.w / 2, tile.volH + BASE_H, f.d / 2);
+      tile.g.updateWorldMatrix(true, false);
+      _bray.copy(ray.ray).applyMatrix4(_binv.copy(tile.g.matrixWorld).invert());
+      if (_bray.intersectBox(_bbox, _bh)) { const d = _bh.distanceTo(_bray.origin); if (d < bestD) { bestD = d; best = tile.i; } }
+    }
+    return best;
+  }
+  const rayAt = ev => {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(tiles.map(x => x.pick), false)[0];
-    return hit ? hit.object.userData.tile : -1;
+  };
+  // the piece under the mouse (a piece wins over the square it stands on and the buildings around it): its name shows on a small tag
+  const nameTag = createNameTag(container);
+  function pickToken(ev) {
+    rayAt(ev);
+    const live = [...tokens.values()].filter(t => !t.out && t.g.visible);
+    const hit = ray.intersectObjects(live.map(t => t.hit), false)[0];
+    return hit ? live.find(t => t.hit === hit.object) : null;
+  }
+  function pickTile(ev) {
+    rayAt(ev);
+    groundPlane.constant = -(city.position.y + BASE_H * S);
+    if (!ray.ray.intersectPlane(groundPlane, hitPt)) return buildingAt();
+    city.worldToLocal(hitPt);
+    for (const tile of tiles) {
+      const f = tile.f, dx = hitPt.x - f.pos.x, dz = hitPt.z - f.pos.z, c = Math.cos(f.rotY), s = Math.sin(f.rotY);
+      if (Math.abs(dx * c - dz * s) <= f.w / 2 && Math.abs(dx * s + dz * c) <= f.d / 2) return tile.i;
+    }
+    return buildingAt();
+  }
+  // hover bubble: a small card over the square the mouse rests on
+  const hoverCard = createHoverCard(container);
+  const hoverGet = i => (lastState && board && board[i] ? hoverData(lastState, board[i], (meta && meta.currency) || '$') : null);
+  const hoverStamp = () => lastState;
+  const hoverAnchor = (i, out) => out.copy(bubbles.anchor(i));
+  // the soft light on the square under the mouse (or the selected one): a warm rim round its footprint and a faint wash over its ground.
+  // Two shared geometries per shape and a few reusable slots, so a fade-out and the next fade-in can overlap without allocating anything per frame.
+  const HL_COLOR = new THREE.Color('#ffb46a');
+  const hlGeo = {};
+  function hlGeos(f) {
+    const key = f.corner ? 'c' : 's';
+    if (hlGeo[key]) return hlGeo[key];
+    const w = f.w - 0.04, d = f.d - 0.05, t = 0.05;
+    const outer = new THREE.Shape().moveTo(-w / 2, -d / 2).lineTo(w / 2, -d / 2).lineTo(w / 2, d / 2).lineTo(-w / 2, d / 2).closePath();
+    outer.holes.push(new THREE.Path().moveTo(-w / 2 + t, -d / 2 + t).lineTo(-w / 2 + t, d / 2 - t).lineTo(w / 2 - t, d / 2 - t).lineTo(w / 2 - t, -d / 2 + t).closePath());
+    const frame = new THREE.ShapeGeometry(outer), wash = new THREE.PlaneGeometry(w, d);
+    frame.rotateX(-Math.PI / 2); wash.rotateX(-Math.PI / 2);
+    return (hlGeo[key] = { frame, wash });
+  }
+  const hlMat = () => new THREE.MeshBasicMaterial({ color: HL_COLOR, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const hlSlots = Array.from({ length: 3 }, () => {
+    const g = new THREE.Group(), frame = new THREE.Mesh(undefined, hlMat()), wash = new THREE.Mesh(undefined, hlMat());
+    frame.renderOrder = wash.renderOrder = 3; g.visible = false; g.add(wash, frame);
+    return { g, frame, wash, tile: null };
+  });
+  hlSlots.forEach(sl => city.add(sl.g));          // (not in `world`: buildWorld clears that)
+  function updateHighlights(dt) {
+    const k = 1 - Math.exp(-dt / 45);                                     // ~120 ms to settle
+    for (const tile of tiles) {
+      const want = tile.i === hovered ? 1 : tile.i === selected ? 0.55 : 0;
+      tile.hl += (want - tile.hl) * k;
+      if (Math.abs(want - tile.hl) < 0.004) tile.hl = want;
+    }
+    for (const sl of hlSlots) if (sl.tile && sl.tile.hl <= 0) { sl.tile = null; sl.g.visible = false; }
+    for (const tile of tiles) {
+      if (tile.hl <= 0) continue;
+      let sl = hlSlots.find(x => x.tile === tile);
+      if (!sl) {
+        sl = hlSlots.find(x => !x.tile);
+        if (!sl) continue;
+        sl.tile = tile;
+        const geos = hlGeos(tile.f);
+        sl.frame.geometry = geos.frame; sl.wash.geometry = geos.wash;
+        sl.g.position.copy(tile.g.position); sl.g.rotation.y = tile.g.rotation.y;
+        sl.g.visible = true;
+      }
+      sl.g.position.y = BASE_H + 0.006 + tile.lift.position.y;
+      sl.frame.material.opacity = tile.hl * 0.7;
+      sl.wash.material.opacity = tile.hl * 0.1;
+    }
   }
   let downAt = null;
-  renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; hoverCard.hide(); });
   renderer.domElement.addEventListener('pointerup', e => {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
     const i = pickTile(e);
     if (i >= 0) onTileClick(i);
   });
   renderer.domElement.addEventListener('pointermove', e => {
-    if (e.pointerType !== 'mouse') return;
-    const h = pickTile(e);
+    if (e.pointerType !== 'mouse') return;                         // touch: no hover, only the tap's selection
+    const tk = e.buttons ? null : pickToken(e);                    // (not while the camera is being dragged)
+    if (tk) { nameTag.show(tk.id, tk.name, tk.color); if (hovered !== -1) { hovered = -1; sfx.place && sfx.place(null); } hoverCard.request(-1); renderer.domElement.style.cursor = 'pointer'; return; }
+    nameTag.hide();
+    const h = e.buttons ? -1 : pickTile(e);
     if (h !== hovered) { hovered = h; sfx.place && sfx.place(h >= 0 ? placeSound(h) : null); }
+    hoverCard.request(h, hoverGet, hoverStamp);
     renderer.domElement.style.cursor = hovered >= 0 ? 'pointer' : 'grab';
   });
-  renderer.domElement.addEventListener('pointerleave', () => { hovered = -1; sfx.place && sfx.place(null); });
+  renderer.domElement.addEventListener('pointerleave', () => { hovered = -1; hoverCard.request(-1); nameTag.hide(); sfx.place && sfx.place(null); });
   let userUntil = 0, follow = true;
-  controls.addEventListener('start', () => { userUntil = performance.now() + 6000; });
+  let camMode = 'cinematic';                                       // 'cinematic' | 'fixed' | 'topdown' (see setFollow)
+  controls.addEventListener('start', () => { userUntil = performance.now() + (camMode === 'topdown' ? 3600e3 : 6000); hoverCard.hide(); nameTag.hide(); });
 
   // the quiet sound of a place: a radio behind a window, the docks, the station, the works
   function placeSound(i) {
@@ -1059,12 +1162,30 @@ export function createCityScene(container, { onTileClick, onCard }) {
   // everything the camera does is written for the +z side of the table, then turned about the vertical axis to the viewer's own seat
   let myYaw = 0;
   const seatTurn = v => v.applyAxisAngle(Yax, myYaw);
-  function homeView(T, P) { homeView0(T, P); seatTurn(T); seatTurn(P); }
+  function homeView(T, P) { if (camMode === 'topdown') return topView(T, P); homeView0(T, P); seatTurn(T); seatTurn(P); }
+  // Top-down: the whole city from a corner as a diamond (topdown.js), steady like Fixed; the aim only drifts a little toward the moving piece
+  let topKey = '';
+  const topT = new THREE.Vector3(), topP = new THREE.Vector3(), ORIGIN = new THREE.Vector3();
+  const topPts = () => squarePoints((H + 0.15) * S, [city.position.y, city.position.y + (BASE_H + 0.7) * S]);
+  function topView(T, P) {
+    const key = [container.clientWidth, container.clientHeight, myYaw].join();
+    if (key !== topKey) {
+      topKey = key;
+      const d = fitTopDown({ pts: topPts(), center: ORIGIN.set(0, city.position.y + BASE_H * S, 0), fov: camera.fov, aspect: camera.aspect, yaw: myYaw, T: topT, P: topP });
+      controls.maxDistance = Math.max(60, d * 1.4);
+    }
+    T.copy(topT); P.copy(topP);
+  }
   function homeView0(T, P) {
     const a = Math.max(0.2, container.clientWidth / Math.max(1, container.clientHeight));
-    if (a < 1) { const d = KS * Math.max(1, 0.56 / a); P.set(0, 26 * d, 24 * d); T.set(0, 0, 0); return; }          // narrow layout: from high up, further back the narrower it gets
+    if (a < 1) { const d = KS * Math.max(0.5, (0.45 + 0.1 * a) / a); P.set(0, 26 * d, 24 * d); T.set(0, 0, 0); return; }          // narrow layout: from high up, the whole width filled (~90%), further back the narrower it gets
     const d = KS * 0.78 * Math.max(1, 1.7 / a);                                                                        // 16:9 is the reference; 4:3 and the like need more distance to fit the width
     T.set(0, 0, 2.5); P.set(0, 8.6 * d, 2.5 + 11.5 * d);       // (a little toward the near row so its plates clear the action panel)
+  }
+  // the plates face the rows nearest the viewer: one row from the seat, the two rows meeting at the nearest corner from the diagonal top-down view
+  function applyNear() {
+    const n = ((-Math.round(myYaw / (Math.PI / 2))) % 4 + 4) % 4;
+    plates.setNear(camMode === 'topdown' ? [n, (n + 3) % 4] : [n]);
   }
   function frameTile(i, ms = 3200) {
     if (!follow || !tiles[i]) return;
@@ -1073,10 +1194,19 @@ export function createCityScene(container, { onTileClick, onCard }) {
     shot.target.copy(at);
     const l = at.clone().applyAxisAngle(Yax, -myYaw);             // the tile in the viewer's frame
     shot.pos.copy(at).add(seatTurn(new THREE.Vector3(l.x * -0.25, 2.6 * KS, (4.4 - l.z * 0.2) * KS)));   // from our side of the table, a little above
-    shot.until = performance.now() + ms;
+    shot.until = performance.now() + slow(ms);
   }
   function direct(now, dt) {
-    if (!follow || now < userUntil) return;
+    if (camMode === 'fixed' || now < userUntil) return;
+    if (camMode === 'topdown') {
+      topView(dT, dP);
+      const mover = [...tokens.values()].find(x => x.anim && !x.anim.wait && !x.out);
+      if (mover) { mover.g.getWorldPosition(head); dT.x += head.x * 0.14; dT.z += head.z * 0.14; dP.x += head.x * 0.14; dP.z += head.z * 0.14; }
+      const a = 1 - Math.exp(-(dt / 1000) * 1.0);
+      controls.target.lerp(dT, a);
+      camera.position.lerp(dP, a);
+      return;
+    }
     homeView(dT, dP);
     let k = 0.9;
     const mover = [...tokens.values()].find(x => x.anim && !x.anim.wait);
@@ -1098,27 +1228,20 @@ export function createCityScene(container, { onTileClick, onCard }) {
   let pendingFx = [];
   let holdUntil = 0;
   let lastMoveSeq = null, lastRollId = null, lastProps = null, lastPhase = null, currentId = null;
-  const allIdle = () => !dice.rolling && performance.now() >= holdUntil && [...tokens.values()].every(x => !x.anim && !x.queue.length);
+  const allIdle = () => !dice.rolling && performance.now() >= holdUntil && [...tokens.values()].every(x => x.out || (!x.anim && !x.queue.length));
 
   function startStep(tk, step, now) {
-    if (step.card) { sfx.card(); onCard && onCard(step.card, tk.id); tk.anim = { wait: true, start: now, dur: step.card.casino ? 5800 : 3800 }; return; }
+    if (step.card) { sfx.card(); onCard && onCard(step.card, tk.id); tk.anim = { wait: true, start: now, dur: slow(step.card.casino ? 5800 : 3800) }; return; }
     const n = step.n;
     if (!n) return;
     tk.jailed = false;
-    tk.anim = { a: step.from, b: step.from + n, start: now, dur: Math.min(3600, Math.max(700, Math.abs(n) * (step.fast ? 150 : 380))), passed: Math.floor(step.from) };
+    tk.anim = { a: step.from, b: step.from + n, start: now, dur: slow(Math.min(3600, Math.max(700, Math.abs(n) * (step.fast ? 150 : 380)))), passed: Math.floor(step.from) };
     if (step.jail) sfx.jail();
   }
 
   // current rent of an owned property or station, formatted (set bonus, round boom/crash and effects included)
   function rentText(sp, st, owner, cur) {
-    const ev = lastState.event && lastState.event.round === lastState.round ? lastState.event.key : null;
-    const mult = (ev === 'boom' ? 1.5 : ev === 'crash' ? 0.5 : 1) * effectMult(lastState, sp);
-    if (sp.type === 'property') {
-      const full = board.filter(s => s.group === sp.group).every(s => lastState.props[s.i] && lastState.props[s.i].owner === owner.id);
-      const base = sp.rent[st.level || 1];
-      return fmtMoney(Math.round((full ? Math.round(base * 1.5) : base) * mult), cur);
-    }
-    return fmtMoney(Math.round(25000 * 2 ** (board.filter(s => s.type === 'railroad' && lastState.props[s.i] && lastState.props[s.i].owner === owner.id).length - 1) * mult), cur);
+    return fmtMoney(tileRent(lastState, board, sp, st, owner), cur);
   }
 
   function bubbleInfo(i) {
@@ -1133,7 +1256,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
       else {
         let rent = rentText(sp, st, owner, cur), lvl = '';
         if (sp.type === 'property') lvl = (st.level >= 5 ? tr('MAX') : tr('Lv {n}', { n: st.level || 1 })) + ' · ';
-        if (sp.type === 'utility') rent = '4–10×';
+        if (sp.type === 'utility') rent = `${fmtMoney(utilPerPip(1), cur)}–${fmtMoney(utilPerPip(2), cur)} ×`;
         sub = `${owner.name} · ${lvl}${rent}`; short = `${lvl}${rent}`;
       }
     } else if (sp.type === 'tax') { sub = `${tr('Pay')} ${fmtMoney(sp.amount, cur)}`; short = fmtMoney(sp.amount, cur); }
@@ -1148,7 +1271,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     if (st.mortgaged) return { text: tr('MORTGAGED'), small: true };
     const cur = (meta && meta.currency) || '$', sq = tileEffectsOf(lastState, sp).filter(e => e.mult === 0);
     if (sq.length) return { text: tr(sq.some(e => e.kind === 'squatters') ? 'SQUATTED' : 'CLOSED'), small: true };
-    if (sp.type === 'utility') return { text: `${board.filter(s => s.type === 'utility' && lastState.props[s.i] && lastState.props[s.i].owner === st.owner).length === 2 ? 10 : 4}× ${tr('DICE')}` };
+    if (sp.type === 'utility') return { text: `${fmtMoney(utilPerPip(board.filter(s => s.type === 'utility' && lastState.props[s.i] && lastState.props[s.i].owner === st.owner).length), cur)} × ${tr('DICE')}` };
     return { text: rentText(sp, st, lastState.players.find(p => p.id === st.owner), cur) };
   }
 
@@ -1168,6 +1291,26 @@ export function createCityScene(container, { onTileClick, onCard }) {
 
   const queueFx = f => pendingFx.push(f);
 
+  // a Building Bombing: the target stays standing and owned (the state is patched) until the explosion plays (api.fx 'bomb'); 8 s fallback
+  let lastBombId = null, bombHold = null, rawState = null;
+  function releaseBomb() {
+    if (!bombHold) return;
+    clearTimeout(bombHold.timer);
+    const t = tiles[bombHold.pos]; if (t) t.bombNow = true;       // the collapse starts right away, not queued behind other effects
+    bombHold = null;
+    if (rawState) api.update(rawState);
+  }
+  function holdBomb(S0) {
+    const c = S0.lastCasino;
+    if (lastBombId === null) lastBombId = c ? c.id : 0;
+    else if (c && c.id !== lastBombId) {
+      lastBombId = c.id;
+      const pos = c.target && c.target.pos;
+      if (c.mode === 'event' && c.key === 'bombing' && !c.stale && pos != null && lastState && lastState.props[pos] && !S0.props[pos]) bombHold = { pos, prop: lastState.props[pos], timer: setTimeout(releaseBomb, slow(8500)) };
+    }
+    if (bombHold && !S0.props[bombHold.pos]) return { ...S0, props: { ...S0.props, [bombHold.pos]: bombHold.prop } };
+    return S0;
+  }
   function applyState(st0) {
     currentId = st0.phase === 'playing' ? st0.players[st0.turn]?.id : null;
     const firstSync = lastProps === null;
@@ -1175,11 +1318,12 @@ export function createCityScene(container, { onTileClick, onCard }) {
     else if (st0.rollId !== lastRollId) {
       sfx.dice();
       const d = (props && currentId && props.seatDir(currentId)) || new THREE.Vector3(0, 0, 1);
-      holdUntil = performance.now() + dice.roll(st0.dice, d) + 150;
+      holdUntil = performance.now() + dice.roll(st0.dice, d) + slow(150);
       lastDice = st0.dice;
     }
     lastRollId = st0.rollId;
     for (const p of st0.players) if (!tokens.has(p.id)) tokens.set(p.id, makeToken(p));
+    for (const [id, tk] of tokens) if (!st0.players.some(p => p.id === id)) { city.remove(tk.g); tk.ring.geometry.dispose(); tk.ring.material.dispose(); tokens.delete(id); tk.enamel.dispose(); tk.felt.dispose(); }   // a finished game's pieces must not keep the scene "busy"
     if (lastMoveSeq !== null && (st0.moveSeq || 0) < lastMoveSeq) lastMoveSeq = null;
     if (lastMoveSeq !== null) {
       for (const m of st0.moves || []) {
@@ -1198,7 +1342,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     const teams = st0.settings.mode === 'teams' && st0.teams;
     for (const p of st0.players) {
       const tk = tokens.get(p.id);
-      tk.enamel.color.set(p.color); tk.enamel.emissive.set(p.color); tk.felt.color.set(teams ? st0.teams[p.team].color : p.color); tk.ring.material.color.set(p.color);
+      tk.name = p.name; tk.color = p.color; tk.enamel.color.set(p.color); tk.enamel.emissive.set(p.color); tk.felt.color.set(teams ? st0.teams[p.team].color : p.color); tk.ring.material.color.set(p.color);
       if (p.bankrupt && !tk.out) { tk.out = true; tween(900, q => tk.g.scale.setScalar(Math.max(0.001, 1 - q)), () => { tk.g.visible = false; }); }
       if (p.pos !== tk.target) { tk.queue.push({ from: tk.target, n: (p.pos - tk.target + 40) % 40, fast: true }); tk.target = p.pos; }
       if (p.inJail !== tk.jailedState) { tk.jailedState = p.inJail; if (p.inJail) pendingFx.push(() => { tk.jailed = true; }); else tk.jailed = false; }
@@ -1235,6 +1379,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
       const houses = st ? Math.min(st.level, 4) : 0;
       if (houses !== tile.houses && !tile.special) {
         if (firstSync) setGrowth(tile, houses, false);
+        else if (tile.bombNow) { tile.bombNow = false; setGrowth(tile, houses, true); }
         else queueFx(() => setGrowth(tile, houses, true));
       }
     });
@@ -1255,22 +1400,26 @@ export function createCityScene(container, { onTileClick, onCard }) {
   const clock = new THREE.Clock();
   let lastFrame = performance.now();
   const tmp = new THREE.Vector3(), head = new THREE.Vector3();
+  const RIM_TARGET = new THREE.Color('#ffe08a'), RIM_IDLE = new THREE.Color('#ffb46a');
+  const restCount = new Map(), slots = new Map(), occupied = new Set();      // reused every frame (no per-frame allocations)
   function frame() {
     if (!alive) return;
     requestAnimationFrame(frame);
     const now = performance.now(), time = clock.getElapsedTime(), dt = now - lastFrame;
     lastFrame = now;
     room.update(time);
+    room.setDetail(post.tier);
+    renderer.toneMappingExposure += (baseExpo * (camMode === 'topdown' ? 1.6 : 1) - renderer.toneMappingExposure) * 0.08;
     dice.update(now);
-    if (props) props.update(time, room.bulbWorld);
+    if (props) { props.setDetail(post.tier); props.update(time, room.bulbWorld); }
     for (let k = tweens.length - 1; k >= 0; k--) {
       const tw = tweens[k], q = Math.min(1, (now - tw.t0) / tw.dur);
       tw.update(q);
       if (q >= 1) { tweens.splice(k, 1); tw.done && tw.done(); }
     }
-    const restCount = new Map();
+    restCount.clear();
     for (const tk of tokens.values()) if (!tk.anim && !tk.jailed) restCount.set(tk.tile, (restCount.get(tk.tile) || 0) + 1);
-    const slots = new Map();
+    slots.clear();
     for (const tk of tokens.values()) {
       if (tk.out) continue;
       if (!tk.anim && tk.queue.length && now >= holdUntil) startStep(tk, tk.queue.shift(), now);
@@ -1302,20 +1451,28 @@ export function createCityScene(container, { onTileClick, onCard }) {
       const isCur = tk.id === currentId;
       tk.ring.material.opacity += ((isCur ? 0.55 + 0.2 * Math.sin(time * 3) : 0) - tk.ring.material.opacity) * 0.08;
       tk.ring.scale.setScalar(1 + (isCur ? 0.06 * Math.sin(time * 3) : 0));
+      tk.body.position.y = (tk.anim ? 0.01 : 0.02) + Math.sin(time * 1.6 + tk.phase) * 0.012 + (isCur && !tk.anim ? Math.abs(Math.sin(time * 2)) * 0.02 : 0);     // every piece hovers and bobs a little
     }
     // squares wake when hovered, selected or occupied; they lift only a hair
-    const occupied = new Set([...tokens.values()].filter(x => !x.out).map(x => (x.jailed ? 10 : x.tile)));
+    occupied.clear();
+    for (const x of tokens.values()) if (!x.out) occupied.add(x.jailed ? 10 : x.tile);
     for (const tile of tiles) {
       const isTarget = targets.has(tile.i);
       const on = tile.i === hovered || tile.i === selected || occupied.has(tile.i) || isTarget;
       life.wake(tile.i, on);
       const aw = life.awake(tile.i);
       tile.lift.position.y = aw * 0.012 + (isTarget ? 0.012 : 0);
+      if (tile.shake) {                                  // a blast or a slam: the square jolts for a moment
+        const k = (performance.now() - tile.shake.t0) / tile.shake.ms;
+        if (k >= 1) { tile.shake = null; tile.lift.position.x = 0; } else { const a = tile.shake.a * (1 - k); tile.lift.position.x = Math.sin(k * 90) * a; tile.lift.position.y += Math.abs(Math.sin(k * 70)) * a * 0.6; }
+      }
       tile.rim.material.opacity = isTarget ? 0.45 + 0.25 * Math.sin(time * 4) : aw * 0.22; tile.rim.visible = isTarget || aw > 0.01;
-      tile.rim.material.color.set(isTarget ? '#ffe08a' : '#ffb46a');
+      tile.rim.material.color.copy(isTarget ? RIM_TARGET : RIM_IDLE);
       const anc = bubbles.anchor(tile.i);
       if (anc) anc.copy(tile.anchorLocal).applyMatrix4(tile.g.matrixWorld);
-      if (lastState) { const info = bubbleInfo(tile.i); if (labelStyle === 'street') plates.set(tile.i, info); else bubbles.set(tile.i, info); const r = roadRent(tile.i); plates.setRent(tile.i, r.text, r.small); }
+      if (lastState && (tile.infoFor !== lastState || tile.infoLang !== lang || tile.infoStyle !== labelStyle)) {       // labels only change with the state, the language or the style
+        tile.infoFor = lastState; tile.infoLang = lang; tile.infoStyle = labelStyle;
+        const info = bubbleInfo(tile.i); if (labelStyle === 'street') plates.set(tile.i, info); else bubbles.set(tile.i, info); const r = roadRent(tile.i); plates.setRent(tile.i, r.text, r.small); }
     }
     for (const tile of tiles) {                          // Max beams fade in and out, and shimmer slowly
       if (!tile.beam.visible) continue;
@@ -1338,6 +1495,9 @@ export function createCityScene(container, { onTileClick, onCard }) {
     post.setFocus(camera.position.distanceTo(controls.target));
     if (labelStyle === 'signs') bubbles.update(camera, time, i => i === hovered || i === selected || occupied.has(i));
     plates.update();
+    updateHighlights(dt);
+    hoverCard.update(camera, hoverAnchor);
+    if (nameTag.id) { const tk = tokens.get(nameTag.id); if (tk && !tk.out) { tk.g.getWorldPosition(tmp); nameTag.update(camera, tmp.setY(tmp.y + TOKEN_TAG_Y * TOKEN_S * S)); } else nameTag.hide(); }
     post.render(dt, time);
   }
   resize();
@@ -1355,9 +1515,27 @@ export function createCityScene(container, { onTileClick, onCard }) {
     get qualityMode() { return post.mode; },
     get quality() { return post.tier; },
     setBroadcast: on => post.setBroadcast(on),
-    setFollow(v) { follow = v; if (v) userUntil = 0; },
+    // v: true (Cinematic), false (Fixed) or 'topdown'
+    setFollow(v) {
+      camMode = v === 'topdown' ? 'topdown' : v ? 'cinematic' : 'fixed';
+      follow = camMode === 'cinematic';
+      if (camMode !== 'fixed') userUntil = 0;
+      applyNear();
+      if (camMode === 'topdown') resetView();
+    },
     resetView,
     select(i) { selected = i; },
+    debugView(px, py, pz, tx = 0, ty = 0, tz = 0) { userUntil = performance.now() + 3600e3; camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); controls.update(); },   // (test harness)
+    tokenScreen(pid) {                                                 // where a piece is on the page (test harness)
+      const tk = tokens.get(pid), r = renderer.domElement.getBoundingClientRect(), v = tk.g.getWorldPosition(new THREE.Vector3());
+      v.y += 0.4 * TOKEN_S * S; v.project(camera);
+      return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+    },
+    tileScreen(i, lx = 0, lz = 0, ly = BASE_H) {                      // where a point of square i (its own frame) is on the page (test harness)
+      const r = renderer.domElement.getBoundingClientRect(), f = tiles[i].f;
+      const v = new THREE.Vector3(lx, 0, lz).applyAxisAngle(Yax, f.rotY).add(f.pos).setY(ly).applyMatrix4(city.matrixWorld).project(camera);
+      return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+    },
     setTargets(list) { targets = new Set(list || []); },
     whenIdle(fn) { pendingFx.push(fn); },
     // the global event: a brass wheel rises out of the middle of the square, spins and stops on the key, then sinks away
@@ -1365,12 +1543,12 @@ export function createCityScene(container, { onTileClick, onCard }) {
       const wheel = makeWheel3D(THREE, segments), R = 2.3 * S, y = city.position.y + BASE_H * S + 0.01;
       wheel.userData.size = R; wheel.userData.y0 = y; wheel.position.set(0, y, 0.3 * S); wheel.rotation.y = myYaw;
       scene.add(wheel);
-      holdUntil = Math.max(holdUntil, performance.now() + 7800);
-      if (follow) { const at = new THREE.Vector3(0, y, 0.3 * S); shot.target.copy(at); shot.pos.copy(at).add(seatTurn(new THREE.Vector3(0, 8.5 * KS, 5.5 * KS))); shot.until = performance.now() + 7600; }
-      return wheel.show(550).then(() => wheel.spinTo(key, 4600, f => sfx.wheelTick(f))).then(() => new Promise(r => setTimeout(r, 500)))
-        .then(() => { wheel.hide(550); });
+      holdUntil = Math.max(holdUntil, performance.now() + slow(7800));
+      if (follow) { const at = new THREE.Vector3(0, y, 0.3 * S); shot.target.copy(at); shot.pos.copy(at).add(seatTurn(new THREE.Vector3(0, 8.5 * KS, 5.5 * KS))); shot.until = performance.now() + slow(7600); }
+      return wheel.show(slow(550)).then(() => wheel.spinTo(key, slow(4600), f => sfx.wheelTick(f))).then(() => new Promise(r => setTimeout(r, slow(500))))
+        .then(() => { wheel.hide(slow(550)); });
     },
-    hold(ms) { holdUntil = Math.max(holdUntil, performance.now() + ms); },          // keep later effects (money, turn card…) waiting while an overlay plays
+    hold(ms) { holdUntil = Math.max(holdUntil, performance.now() + slow(ms)); },          // keep later effects (money, turn card…) waiting while an overlay plays
     isIdle: () => allIdle(),
     setLabels(all) { bubbles.setShowAll(all); },
     setLabelStyle(st) {
@@ -1397,13 +1575,23 @@ export function createCityScene(container, { onTileClick, onCard }) {
       });
     },
     // the smoke of a bombing, once the verdict is out
-    bomb(pos) { const b = tiles[pos]; if (b) smokeAt(new THREE.Vector3(b.g.position.x, BASE_H + 0.2, b.g.position.z), 16, '#3a342e'); },
+    bomb(pos) { api.fx('bomb', { pos }); },
+    // event animation on one square or a whole district: kind = bomb | police | mayor | gift | gang | crime | wreck | shootout-win | shootout-loss | squatters | evict | buyout | seized
+    fx(kind, o = {}) {
+      let list = o.positions || (o.pos != null ? [o.pos] : o.group ? board.filter(sp => sp.group === o.group).map(sp => sp.i) : []);
+      list = list.filter(i => tiles[i]);
+      if (!list.length) return;
+      fx3d.run(kind, list.map(i => fxHost(tiles[i])), o);
+      if (kind === 'bomb' && bombHold && bombHold.pos === list[0]) { clearTimeout(bombHold.timer); bombHold.timer = setTimeout(releaseBomb, slow(450)); }
+    },
     chaos() { smokeAt(new THREE.Vector3(0, PLAZA_Y + 0.1, 0.3), 16); sfx.chaos(); },
     celebrate() { smokeAt(new THREE.Vector3(0, PLAZA_Y + 0.1, 0.3), 20, '#8a7c66'); sfx.win(); },
-    update(st0) {
+    update(st0raw) {
+      rawState = st0raw;
+      const st0 = holdBomb(st0raw);
       lastState = st0;
       const yaw = viewYaw(st0);
-      if (yaw !== myYaw) { myYaw = yaw; plates.setNear(((-Math.round(yaw / (Math.PI / 2))) % 4 + 4) % 4); resetView(); }
+      if (yaw !== myYaw) { myYaw = yaw; applyNear(); resetView(); }
       if (props) { const snap = st0; pendingFx.push(() => props.sync(snap)); }
       if (!tiles.length) return;
       applyState(st0);
@@ -1413,9 +1601,9 @@ export function createCityScene(container, { onTileClick, onCard }) {
       resizeObs.disconnect();
       controls.dispose();
       post.dispose();
-      bubbles.dispose(); plates.dispose();
+      bubbles.dispose(); plates.dispose(); hoverCard.dispose(); nameTag.dispose();
       sfx.place && sfx.place(null);
-      scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      disposeScene(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

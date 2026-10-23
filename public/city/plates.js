@@ -21,7 +21,7 @@ export function createPlates() {
   const g = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
   const mat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: 0.4, roughness: 0.55, metalness: 0.1, transparent: true });
-  let dirty = false, items = [], style = 'street', near = 0;   // near: the side index of the row nearest the viewer
+  let dirty = false, items = [], style = 'street', near = [0];   // near: the side indexes of the rows nearest the viewer (one for the seat view, the two rows at the corner for the diagonal top-down view)
 
   // ------------------------------------------------------------ the paint cells
   function paintCells() {
@@ -44,7 +44,7 @@ export function createPlates() {
   // The viewer's near row (side `near`, side 0 for the +z home camera) faces the home camera from the outer edge of its lot, so no building stands in front of it; the other sides stand on the
   // road-side pavement facing the street (the far row, seen from the home camera, and the side rows, seen from the middle of the board)
   function plateGeo(n, f) {
-    const corner = f.corner, flip = f.side !== near, w = corner ? 1.1 : PW, d = w * CH / CW;
+    const corner = f.corner, flip = !near.includes(f.side), w = corner ? 1.1 : PW, d = w * CH / CW;
     const geo = new THREE.BoxGeometry(w, PT, d);
     const pos = geo.attributes.position, uv = geo.attributes.uv, c = cell(n);
     for (let v = 0; v < pos.count; v++) {
@@ -57,7 +57,7 @@ export function createPlates() {
     geo.rotateX(flip ? -TILT : TILT);
     geo.computeBoundingBox();
     const bb = geo.boundingBox, x = corner ? ROAD / 2 : 0;
-    const z = f.side === near ? (corner ? f.d / 2 - 0.03 : KERB + LOT - 0.02) - bb.max.z : (corner ? -f.d / 2 + ROAD + 0.02 : KERB - 0.145) - bb.min.z;
+    const z = near.includes(f.side) ? (corner ? f.d / 2 - 0.03 : KERB + LOT - 0.02) - bb.max.z : (corner ? -f.d / 2 + ROAD + 0.02 : KERB - 0.145) - bb.min.z;
     geo.translate(x, BASE_H + 0.002 - bb.min.y, z);
     return geo;
   }
@@ -79,7 +79,7 @@ export function createPlates() {
       list.push(quad(PAINT, 0.03, CARRIAGE - 0.01, x, BASE_H + 0.0036, zc));
       for (const s of [-1, 1]) list.push(quad(TICK, 0.03, 0.075, x, BASE_H + 0.0232, zc + s * (CARRIAGE / 2 + 0.05)));
     }
-    const zr = -D / 2 + SIDE + CARRIAGE / 2, geo = new THREE.PlaneGeometry(RW, RD).rotateX(-Math.PI / 2), uv = geo.attributes.uv, pos = geo.attributes.position, flip = f.side !== near;
+    const zr = -D / 2 + SIDE + CARRIAGE / 2, geo = new THREE.PlaneGeometry(RW, RD).rotateX(-Math.PI / 2), uv = geo.attributes.uv, pos = geo.attributes.position, flip = !near.includes(f.side);
     for (let v = 0; v < pos.count; v++) {
       let nu = pos.getX(v) / RW + 0.5, nv = pos.getZ(v) / RD + 0.5;
       if (flip) { nu = 1 - nu; nv = 1 - nv; }
@@ -105,7 +105,8 @@ export function createPlates() {
   }
   // turn the plates to the viewer's seat: a one-off rebuild of the geometry (no per-frame cost)
   function setNear(n) {
-    if (n === near) return;
+    n = [].concat(n);
+    if (n.join() === near.join()) return;
     near = n;
     for (const it of items) if (it) {
       const u = it.mesh.userData, old = it.mesh.geometry;

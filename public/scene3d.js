@@ -5,16 +5,23 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { sfx } from './sfx.js';
 import { P, FONTS, groupColor } from './palette.js';
 import { createPost } from './post.js';
+import { disposeScene } from './dispose.js';
 import { createRoom } from './room.js';
 import { createProps, viewYaw } from './props.js';
-import { makePewterToken, setTokenEnvironment } from './tokens.js';
+import { makePewterToken, setTokenEnvironment, createNameTag, TOKEN_TAG_Y } from './tokens.js';
+import { fitTopDown, squarePoints } from './topdown.js';
 import { createDice } from './dice.js';
+import { createHoverCard, hoverData } from './hovercard.js';
 import { makeWheel3D } from './wheel3d.js';
 import { fmtMoney } from './money.js';
+import { ms as slow } from './speed.js';
+import { createFx3d } from './fx3d.js';
 import { createBoard, boardHeight, BOARD_T, makeHouse, makeHotel, makeOwnerChip, makeMortgageSlip } from './board.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
-const HALF = 6.1;   // half board size (2 corners of 1.6 + 9 tiles of 1)
+const TS = 1.1;     // the printed board is drawn this much bigger than its original 12.2 units (props.js keeps clear of it)
+const HALF = 6.1 * TS;   // half board size (2 corners of 1.6 + 9 tiles of 1, times TS)
+const TOKEN_S = 1.2;    // a piece's size on the board (1.5x the old 0.8)
 const TH = 0.008;   // pieces rest just on the printed surface (plus the board's warp)
 const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 const TEXT_FONT = FONTS.display;
@@ -34,9 +41,9 @@ const elastic = k => (k === 0 || k === 1 ? k : 2 ** (-10 * k) * Math.sin((k * 10
 // Where tile i sits: its center, rotation, and size. Local -z always points at the board center.
 function tileFrame(i) {
   const s = Math.floor(i / 10), k = i % 10, corner = k === 0;
-  const lx = corner ? HALF - 0.8 : HALF - 2.1 - (k - 1);   // 9 tiles fill the gap between the 1.6-wide corners
+  const lx = corner ? HALF - 0.8 * TS : HALF - (2.1 + (k - 1)) * TS;   // 9 tiles fill the gap between the 1.6-wide corners
   const rot = -s * Math.PI / 2;
-  return { pos: new THREE.Vector3(lx, 0, HALF - 0.8).applyAxisAngle(Y, rot), rot, w: corner ? 1.6 : 1, d: 1.6, corner };
+  return { pos: new THREE.Vector3(lx, 0, HALF - 0.8 * TS).applyAxisAngle(Y, rot), rot, w: (corner ? 1.6 : 1) * TS, d: 1.6 * TS, corner };
 }
 const toWorld = (fr, x, z, y = 0) => new THREE.Vector3(x, 0, z).applyAxisAngle(Y, fr.rot).add(fr.pos).setY(y);
 
@@ -69,6 +76,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   const room = createRoom(scene, renderer, { tableY: TABLE_Y });
   const post = createPost(renderer, scene, camera, { onShadowSize: size => room.setShadowSize(size) });
   room.envReady.then(setTokenEnvironment);
+  const baseExpo = renderer.toneMappingExposure;       // Top-down lifts it a little so the far rows stay readable
   let props = null;   // the clutter around the board (props.js); waits for its printed fonts
   Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f)))
     .catch(() => {}).then(() => { props = createProps(scene, { tableY: TABLE_Y }); if (lastState) props.sync(lastState); });
@@ -85,8 +93,23 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   const animated = [];              // decor that wiggles
   const tweens = [];
   let pendingFx = [];
+  let fx3d = null, bombHold = null, lastBombId = null, rawState = null;
+  // a Building Bombing: keep the target standing (as if still owned) until the explosion plays (fx 'bomb'), 8 s fallback
+  function releaseBomb() { if (!bombHold) return; clearTimeout(bombHold.timer); bombHold = null; if (rawState) api.update(rawState); }
+  function holdBomb(S0) {
+    const c = S0.lastCasino;
+    if (lastBombId === null) lastBombId = c ? c.id : 0;
+    else if (c && c.id !== lastBombId) {
+      lastBombId = c.id;
+      const pos = c.target && c.target.pos;
+      if (c.mode === 'event' && c.key === 'bombing' && !c.stale && pos != null && lastState && lastState.props[pos] && !S0.props[pos]) bombHold = { pos, prop: lastState.props[pos], timer: setTimeout(releaseBomb, slow(8500)) };
+    }
+    if (bombHold && !S0.props[bombHold.pos]) return { ...S0, props: { ...S0.props, [bombHold.pos]: bombHold.prop } };
+    return S0;
+  }
   let holdUntil = 0;
   let follow = true, userUntil = 0;
+  let camMode = 'cinematic';        // 'cinematic' | 'fixed' | 'topdown' (see setFollow)
   let lastMoveSeq = null;
   let lastRollId = null, lastProps = null, lastMoney = {}, lastTurn = null, lastPhase = null;
   let hovered = -1, selected = -1, targets = new Set();   // targets: tiles a card can be played on (glow)
@@ -102,7 +125,9 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     return t;
   }
 
-  function tween(dur, update, done) {
+  // dur is stretched by the game speed (Relaxed / Normal / Fast); tweenRaw is for physics-style particles that integrate real time
+  function tween(dur, update, done) { return tweenRaw(slow(dur), update, done); }
+  function tweenRaw(dur, update, done) {
     const tw = { t0: performance.now(), dur, update, done };
     tweens.push(tw);
     return tw;
@@ -195,7 +220,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     animated.length = 0;
     tiles = [];
     if (!board) return;
-    const physical = createBoard({ board, meta, tileFrame, HALF, tex: (canvas, srgb) => {
+    const physical = createBoard({ board, meta, tileFrame, HALF, K: TS, tex: (canvas, srgb) => {
       const t = new THREE.CanvasTexture(canvas);
       if (srgb) t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = maxAniso;
@@ -207,27 +232,28 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
 
   // ------------------------------------------------------------ tokens
 
-  // pewter pieces (tokens.js) with a pulsing ring in their colour under whoever's turn it is
+  // the pieces (tokens.js): the player's colour on the body, a glowing disc under it, and a pulsing ring under whoever's turn it is
   function makeToken(p) {
     const group = new THREE.Group();
     const body = new THREE.Group();     // squash & stretch happens here
-    const { group: piece, enamel, felt } = makePewterToken(p.token, p.color);
+    const { group: piece, ground, enamel, felt, hit } = makePewterToken(p.token, p.color);
     body.add(piece);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.37, 0.5, 48), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012;
-    group.add(body, ring);
-    group.scale.setScalar(0.8);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.64, 48), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.014;
+    group.add(body, ground, ring);
+    group.scale.setScalar(TOKEN_S);
     const fr = tileFrame(p.pos);
     group.position.copy(fr.pos).setY(TH);
     group.rotation.y = Math.PI + fr.rot;
     scene.add(group);
-    return { id: p.id, group, body, ring, baseMat: enamel, felt, tile: p.pos, target: p.pos, queue: [], anim: null, jailed: p.inJail, out: false, rest: group.position.clone(), faceYaw: null, color: p.color, token: p.token };
+    return { id: p.id, group, body, ring, hit, baseMat: enamel, felt, tile: p.pos, target: p.pos, queue: [], anim: null, jailed: p.inJail, out: false, rest: group.position.clone(), faceYaw: null, color: p.color, token: p.token, name: p.name, phase: tokens.size * 1.7 };
   }
 
-  function slotOffsets(i, jailed) {
-    if (i === 10) return jailed ? [[-0.5, -0.5], [-0.26, -0.5], [-0.5, -0.26], [-0.26, -0.26]] : [[0.45, 0.45], [0.05, 0.55], [0.55, 0.05], [0.5, -0.4]];
-    if (i % 10 === 0) return [[-0.35, 0.35], [0.35, 0.35], [0.35, -0.35], [-0.35, -0.35]];
-    return [[-0.22, 0.05], [0.22, 0.05], [-0.22, 0.5], [0.22, 0.5]];
+  // where the n pieces sharing a square stand (the square's own frame): fanned out in a zigzag so none hides another
+  function slotOffsets(i, jailed, n) {
+    if (i === 10) return jailed ? [[-0.62, -0.62], [-0.08, -0.62], [-0.62, -0.08], [-0.08, -0.08]] : [[0.5, 0.5], [-0.05, 0.62], [0.62, -0.05], [0.55, -0.6]];
+    if (i % 10 === 0) return Array.from({ length: n }, (_, k) => { const a = Math.PI / 4 + k * 2 * Math.PI / n; return [Math.cos(a) * 0.5, Math.sin(a) * 0.5]; });     // round the corner square: any two stay apart from every side
+    return Array.from({ length: n }, (_, k) => [n === 1 ? 0 : k % 2 ? 0.21 : -0.21, 0.12 + (k - (n - 1) / 2) * 0.47]);
   }
 
   function layoutTokens() {
@@ -238,8 +264,9 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       (groups[key] ||= []).push(t);
     }
     for (const list of Object.values(groups)) {
+      const slots = slotOffsets(list[0].tile, list[0].jailed, list.length);
       list.forEach((t, k) => {
-        const [x, z] = slotOffsets(t.tile, t.jailed)[k % 4];
+        const [x, z] = slots[k % slots.length];
         const fr = tileFrame(t.tile);
         t.rest = toWorld(fr, x, z, 0);
         t.rest.y = TH + boardHeight(t.rest.x, t.rest.z);
@@ -295,7 +322,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     if (tiles[i]) tiles[i].pulse = 0.12;
   }
 
-  const allIdle = () => [...tokens.values()].every(t => !t.anim && !t.queue.length) && performance.now() >= holdUntil;
+  const allIdle = () => [...tokens.values()].every(t => t.out || (!t.anim && !t.queue.length)) && performance.now() >= holdUntil;   // (a bankrupt piece never plays its queue)
 
   // ------------------------------------------------------------ dice
 
@@ -328,7 +355,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     fxGroup.add(mesh);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
     let last = performance.now();
-    tween(2200, k => {
+    tweenRaw(2200, k => {
       const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       parts.forEach((pt, i) => {
         pt.v.y -= 9 * dt; pt.v.multiplyScalar(0.985);
@@ -389,9 +416,9 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       const coin = new THREE.Mesh(geo, mat);
       coin.castShadow = true; coin.visible = false;
       fxGroup.add(coin);
-      const t0 = performance.now() + k * 65, side = rand(-0.6, 0.6);
+      const t0 = performance.now() + slow(k * 65), side = rand(-0.6, 0.6);
       tween(1000 + k * 65, () => {
-        const q = Math.max(0, Math.min(1, (performance.now() - t0) / 1000));
+        const q = Math.max(0, Math.min(1, (performance.now() - t0) / slow(1000)));
         coin.visible = q > 0 && q < 1;
         coin.position.lerpVectors(a.group.position, b.group.position, easeInOut(q));
         coin.position.y = 0.6 + Math.sin(Math.PI * q) * 2.6;
@@ -416,15 +443,31 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   // ------------------------------------------------------------ input
 
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-  function pickTile(ev) {
+  const rayAt = ev => {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
+  };
+  // the piece under the mouse (a piece wins over the square it stands on): its name shows on a small tag
+  const nameTag = createNameTag(container);
+  function pickToken(ev) {
+    rayAt(ev);
+    const live = [...tokens.values()].filter(t => !t.out && t.group.visible);
+    const hit = ray.intersectObjects(live.map(t => t.hit), false)[0];
+    return hit ? live.find(t => t.hit === hit.object) : null;
+  }
+  function pickTile(ev) {
+    rayAt(ev);
     const hit = ray.intersectObjects(tiles.map(t => t.pick), false)[0];
     return hit ? hit.object.userData.tile : -1;
   }
+  // hover bubble over the square the mouse rests on (hovercard.js); the square itself glows (see the frame loop)
+  const hoverCard = createHoverCard(container);
+  const hoverGet = i => (lastState && board && board[i] ? hoverData(lastState, board[i], (meta && meta.currency) || '$') : null);
+  const hoverStamp = () => lastState;
+  const hoverAnchor = (i, out) => (tiles[i] ? tiles[i].group.getWorldPosition(out).setY(0.45) : out.set(0, 0, 0));
   let downAt = null;
-  renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; hoverCard.hide(); });
   renderer.domElement.addEventListener('pointerup', e => {
     if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
     const i = pickTile(e);
@@ -432,10 +475,15 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   });
   renderer.domElement.addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse') return;
-    hovered = pickTile(e);
+    const tk = e.buttons ? null : pickToken(e);                  // (not while the camera is being dragged)
+    if (tk) { hovered = -1; hoverCard.request(-1); nameTag.show(tk.id, tk.name, tk.color); renderer.domElement.style.cursor = 'pointer'; return; }
+    nameTag.hide();
+    hovered = e.buttons ? -1 : pickTile(e);
+    hoverCard.request(hovered, hoverGet, hoverStamp);
     renderer.domElement.style.cursor = hovered >= 0 ? 'pointer' : 'grab';
   });
-  controls.addEventListener('start', () => { userUntil = performance.now() + 6000; });
+  renderer.domElement.addEventListener('pointerleave', () => { hovered = -1; hoverCard.request(-1); nameTag.hide(); });
+  controls.addEventListener('start', () => { userUntil = performance.now() + (camMode === 'topdown' ? 3600e3 : 6000); hoverCard.hide(); nameTag.hide(); });
 
   function resize() {
     const w = container.clientWidth, h = container.clientHeight;
@@ -443,6 +491,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     post.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    if (camMode === 'topdown' && performance.now() >= userUntil) topView(controls.target, camera.position);   // the fit depends on the aspect: re-frame at once
   }
   const resizeObs = new ResizeObserver(resize);
   resizeObs.observe(container);
@@ -458,8 +507,8 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   const seatTurn = v => v.applyAxisAngle(UP, myYaw);
   function seatView(T, P) {
     const portrait = container.clientWidth < container.clientHeight;
-    P.set(0, portrait ? 30 : 12.5, portrait ? 30 : 19.5);
-    T.set(0, portrait ? 0 : 3.9, portrait ? 0 : -0.5);
+    P.set(0, portrait ? 30 : 12, portrait ? 30 : 18.4);                       // (a little nearer than before the board grew: it still has room)
+    T.set(0, portrait ? 0 : 3.8, portrait ? 0 : -0.5);
     seatTurn(P); seatTurn(T);
   }
   function closeUp(at, ms = 2500, dist = 4.6, height = 2.6) {
@@ -469,10 +518,32 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     const dir = out.normalize().add(seatTurn(new THREE.Vector3(0, 0, 0.9))).normalize();     // from the outside, on our side of the table
     shot.target.copy(at).add(new THREE.Vector3(0, 0.25, 0));
     shot.pos.copy(at).addScaledVector(dir, dist).setY(at.y + height);
-    shot.until = performance.now() + ms;
+    shot.until = performance.now() + slow(ms);
   }
+  // Top-down: the whole board from a corner as a diamond (topdown.js), steady like Fixed; the aim only drifts a little toward the moving piece
+  let topKey = '';
+  const topT = new THREE.Vector3(), topP = new THREE.Vector3(), topPts = squarePoints(HALF + 0.35, [0, 0.3]), ORIGIN = new THREE.Vector3();
+  function topView(T, P) {
+    const key = [container.clientWidth, container.clientHeight, myYaw].join();
+    if (key !== topKey) {
+      topKey = key;
+      const d = fitTopDown({ pts: topPts, center: ORIGIN, fov: camera.fov, aspect: camera.aspect, yaw: myYaw, T: topT, P: topP });
+      controls.maxDistance = Math.max(55, d * 1.4);
+    }
+    T.copy(topT); P.copy(topP);
+  }
+  const homeView = (T, P) => (camMode === 'topdown' ? topView(T, P) : seatView(T, P));
   function direct(now, dt) {
-    if (!follow || now < userUntil) return;
+    if (camMode === 'fixed' || now < userUntil) return;
+    if (camMode === 'topdown') {
+      topView(dT, dP);
+      const mover = [...tokens.values()].find(t => t.anim && !t.out);
+      if (mover) { const q = mover.group.position; dT.x += q.x * 0.14; dT.z += q.z * 0.14; dP.x += q.x * 0.14; dP.z += q.z * 0.14; }
+      const a = 1 - Math.exp(-(dt / 1000) * 1.2);
+      controls.target.lerp(dT, a);
+      camera.position.lerp(dP, a);
+      return;
+    }
     seatView(dT, dP);
     let k = 1.5;
     const mover = [...tokens.values()].find(t => t.anim || t.queue.length);
@@ -486,7 +557,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       followT.set(p.x, 0.5, p.z);
       const dir = new THREE.Vector3(p.x * 0.35, 0, p.z * 0.35).add(seatTurn(new THREE.Vector3(0, 0, 6))).normalize();
       followP.copy(followT).addScaledVector(dir, 8).setY(6.2);
-      followUntil = now + 900;
+      followUntil = now + slow(900);
       dT.copy(followT); dP.copy(followP); k = 2.0;
     } else if (now < followUntil) { dT.copy(followT); dP.copy(followP); }   // linger a beat after landing
     const a = 1 - Math.exp(-(dt / 1000) * k);
@@ -496,7 +567,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
 
   function resetView() {
     // seated at the table: eye level above the near edge, looking down across the board
-    seatView(controls.target, camera.position);
+    homeView(controls.target, camera.position);
     userUntil = 0;
     shot.until = 0;
   }
@@ -513,8 +584,10 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     const now = performance.now(), time = clock.getElapsedTime();
     const dt = now - lastFrame; lastFrame = now;
     room.update(time);
+    room.setDetail(post.tier);
+    renderer.toneMappingExposure += (baseExpo * (camMode === 'topdown' ? 1.45 : 1) - renderer.toneMappingExposure) * 0.08;
     diceSys.update(now);
-    if (props) props.update(time, room.bulbWorld);
+    if (props) { props.setDetail(post.tier); props.update(time, room.bulbWorld); }
     for (let k = tweens.length - 1; k >= 0; k--) {
       const tw = tweens[k];
       const p = Math.min(1, (now - tw.t0) / tw.dur);
@@ -537,16 +610,18 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       const isCur = t.id === currentId;
       t.ring.visible = isCur && !t.out;
       if (isCur) { t.ring.material.opacity = 0.5 + 0.2 * Math.sin(time * 3); t.ring.scale.setScalar(1 + 0.05 * Math.sin(time * 3)); }
-      t.body.position.y = !t.anim && isCur ? Math.abs(Math.sin(time * 2)) * 0.035 : 0;
+      // every piece hovers and bobs a little (the player to move more eagerly)
+      t.body.position.y = t.anim ? 0 : 0.03 + Math.sin(time * 1.6 + t.phase) * 0.018 + (isCur ? Math.abs(Math.sin(time * 2)) * 0.035 : 0);
       // face the direction of travel (along the board edge when resting)
       const want = t.faceYaw != null ? t.faceYaw : Math.PI + tileFrame(t.tile).rot;
       let dy = want - t.group.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       t.group.rotation.y += dy * 0.18;
     }
-    // printed tiles glow softly on hover/select
+    // printed tiles glow softly on hover/select (about 120 ms to fade in or out)
+    const hlK = 1 - Math.exp(-dt / 45);
     tiles.forEach((t, i) => {
-      const target = i === selected ? 0.16 : i === hovered ? 0.09 : 0;
-      t.lift += (target + (t.pulse || 0) + (targets.has(i) ? 0.4 + 0.18 * Math.sin(time * 4) : 0) - t.lift) * 0.2;
+      const target = i === hovered ? 0.34 : i === selected ? 0.2 : 0;
+      t.lift += (target + (t.pulse || 0) + (targets.has(i) ? 0.4 + 0.18 * Math.sin(time * 4) : 0) - t.lift) * hlK;
       t.pulse = (t.pulse || 0) * 0.92;
       t.glow.material.opacity = t.lift;
     });
@@ -564,6 +639,8 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     const off = new THREE.Vector3(Math.sin(time * 0.37) * 0.05 + Math.sin(time * 0.91) * 0.02, Math.sin(time * 0.53) * 0.04, Math.cos(time * 0.29) * 0.03);
     if (now < shakeUntil) { const k = (shakeUntil - now) / 1100 * shakePower; off.add(new THREE.Vector3(rand(-k, k), rand(-k, k), rand(-k, k))); }
     camera.position.add(off);
+    hoverCard.update(camera, hoverAnchor);
+    if (nameTag.id) { const tk = tokens.get(nameTag.id); if (tk && !tk.out) nameTag.update(camera, tmp.copy(tk.group.position).setY(tk.group.position.y + TOKEN_TAG_Y * TOKEN_S)); else nameTag.hide(); }
     post.render(dt, time);
     camera.position.sub(off);
   }
@@ -594,7 +671,8 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       resizeObs.disconnect();
       controls.dispose();
       post.dispose();
-      scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      hoverCard.dispose(); nameTag.dispose();
+      disposeScene(scene);
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
@@ -603,15 +681,29 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     setBroadcast: on => post.setBroadcast(on),
     get qualityMode() { return post.mode; },
     get quality() { return post.tier; },
-    setFollow(v) { follow = v; if (v) userUntil = 0; },
+    // v: true (Cinematic), false (Fixed) or 'topdown'
+    setFollow(v) {
+      camMode = v === 'topdown' ? 'topdown' : v ? 'cinematic' : 'fixed';
+      follow = camMode === 'cinematic';
+      if (camMode !== 'fixed') userUntil = 0;
+      if (camMode === 'topdown') resetView();
+    },
     resetView,
     select(i) { selected = i; },
-    setTargets(list) {       // golden glow on the tiles a card can be played on (normal blending: additive vanishes on the cream board)
+    debugView(px, py, pz, tx = 0, ty = 0, tz = 0) { userUntil = performance.now() + 3600e3; camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); controls.update(); },   // (test harness)
+    tokenScreen(pid) {                                                 // where a piece is on the page (test harness)
+      const t = tokens.get(pid), r = renderer.domElement.getBoundingClientRect(), v = t.group.position.clone().setY(t.group.position.y + 0.4 * TOKEN_S).project(camera);
+      return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+    },
+    tileScreen(i, lx = 0, lz = 0, ly = TH) {                          // where a point of square i (its own frame) is on the page (test harness)
+      const r = renderer.domElement.getBoundingClientRect(), v = toWorld(tiles[i].fr, lx, lz, ly).project(camera);
+      return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+    },
+    setTargets(list) {       // golden glow on the tiles a card can be played on (a brighter gold than the hover glow)
       const next = new Set(list || []);
       tiles.forEach((t, i) => {
         if (next.has(i) === targets.has(i)) return;
-        t.glow.material.blending = next.has(i) ? THREE.NormalBlending : THREE.AdditiveBlending;
-        t.glow.material.color.set(next.has(i) ? '#f2b23a' : '#ffcf8a'); t.glow.material.needsUpdate = true;
+        t.glow.material.color.set(next.has(i) ? '#f2b23a' : '#f0a83c');
       });
       targets = next;
     },
@@ -620,19 +712,37 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       const wheel = makeWheel3D(THREE, segments), R = 3.1, y = TH + boardHeight(0, 0) + 0.01;
       wheel.userData.size = R; wheel.userData.y0 = y; wheel.position.set(0, y, 0); wheel.rotation.y = myYaw;
       scene.add(wheel);
-      holdUntil = Math.max(holdUntil, performance.now() + 7800);
-      if (follow) { shot.target.set(0, y, 0); shot.pos.set(0, 11, 9); seatTurn(shot.pos); shot.until = performance.now() + 7600; }
-      return wheel.show(550).then(() => wheel.spinTo(key, 4600, f => sfx.wheelTick(f))).then(() => new Promise(r => setTimeout(r, 500)))
-        .then(() => { wheel.hide(550); });
+      holdUntil = Math.max(holdUntil, performance.now() + slow(7800));
+      if (follow) { shot.target.set(0, y, 0); shot.pos.set(0, 11, 9); seatTurn(shot.pos); shot.until = performance.now() + slow(7600); }
+      return wheel.show(slow(550)).then(() => wheel.spinTo(key, slow(4600), f => sfx.wheelTick(f))).then(() => new Promise(r => setTimeout(r, slow(500))))
+        .then(() => { wheel.hide(slow(550)); });
     },
-    hold(ms) { holdUntil = Math.max(holdUntil, performance.now() + ms); },
+    hold(ms) { holdUntil = Math.max(holdUntil, performance.now() + slow(ms)); },
     isIdle: () => allIdle(),
     emote: emoteFx,
     gift: giftFx,
     chaos: chaosFx,
+    // event animation on a square or a whole district (same API as City Mode): the shared fx3d.js sprites, hosted on the printed square
+    fx(kind, o = {}) {
+      fx3d ||= createFx3d({ dot: tex(64, 64, (g, w) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, w); }), tween });
+      let list = o.positions || (o.pos != null ? [o.pos] : o.group ? tiles.filter(t => t.sp && t.sp.group === o.group).map(t => t.sp.i) : []);
+      list = list.filter(i => tiles[i]);
+      if (!list.length) return;
+      const roots = [];
+      const hosts = list.map(i => {
+        const t = tiles[i], fr = t.fr, root = new THREE.Group();
+        root.position.copy(fr.pos); root.rotation.y = fr.rot; fxGroup.add(root); roots.push(root);
+        return { parent: root, y: TH + 0.05, cz: 0, w: fr.w * 0.9, d: fr.d * 0.9, shake: a => { t.pulse = Math.max(t.pulse || 0, a * 5); } };
+      });
+      fx3d.run(kind, hosts, o);
+      if (kind === 'bomb' && bombHold && bombHold.pos === list[0]) { clearTimeout(bombHold.timer); bombHold.timer = setTimeout(releaseBomb, slow(500)); }
+      setTimeout(() => roots.forEach(r => fxGroup.remove(r)), slow(8000));
+    },
     celebrate() { for (let k = 0; k < 4; k++) setTimeout(() => burst(new THREE.Vector3(rand(-3, 3), 1, rand(-3, 3)), 140, 1.3), k * 400); sfx.win(); },
 
-    update(S) {
+    update(S0) {
+      rawState = S0;
+      const S = holdBomb(S0);
       lastState = S;
       const yaw = viewYaw(S);
       if (yaw !== myYaw) { myYaw = yaw; resetView(); }
@@ -648,6 +758,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
 
       // tokens & movement: replay the exact path the server recorded
       for (const p of S.players) if (!tokens.has(p.id)) tokens.set(p.id, makeToken(p));
+      for (const [id, t] of tokens) if (!S.players.some(p => p.id === id)) { scene.remove(t.group); t.ring.geometry.dispose(); t.ring.material.dispose(); tokens.delete(id); t.baseMat.dispose(); t.felt.dispose(); }   // a finished game's pieces must not keep the scene "busy"
       if (lastMoveSeq !== null && (S.moveSeq || 0) < lastMoveSeq) lastMoveSeq = null; // a new game started
       if (lastMoveSeq !== null) {
         for (const m of S.moves || []) {
@@ -668,12 +779,12 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       const gains = new Map(S.players.map(o => [o.id, o.money - (lastMoney[o.id] ?? o.money)]));
       for (const p of S.players) {
         const t = tokens.get(p.id);
-        t.baseMat.color.set(p.color); t.baseMat.emissive.set(p.color); t.felt.color.set(teamsMode && S.teams ? S.teams[p.team].color : p.color); t.ring.material.color.set(p.color);
+        t.name = p.name; t.color = p.color; t.baseMat.color.set(p.color); t.baseMat.emissive.set(p.color); t.felt.color.set(teamsMode && S.teams ? S.teams[p.team].color : p.color); t.ring.material.color.set(p.color);
         if (p.bankrupt && !t.out) {
           t.out = true;
           const where = (props && props.seatPosition(p.id)) || t.group.position.clone();
           pendingFx.push(() => { closeUp(where, 3400, 6, 4.2); shakeUntil = performance.now() + 900; shakePower = 0.25; });
-          tween(600, k => t.group.scale.setScalar(0.8 * (1 - k)), () => { t.group.visible = false; });
+          tween(600, k => t.group.scale.setScalar(TOKEN_S * (1 - k)), () => { t.group.visible = false; });
         }
         if (p.pos !== t.target) { t.queue.push({ fly: p.pos }); t.target = p.pos; } // safety net
         const jailedNow = p.inJail;

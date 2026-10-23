@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { loadModel, loadTexture } from './assets.js';
 import { BULB_COLOR, UNITS_PER_M } from './room.js';
 import { sfx } from './sfx.js';
+import { mergeMeshes } from './bake.js';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -192,7 +193,11 @@ function chipStacks(n = 3) {
     c.position.set(rand(-0.6, 1.8), 0.065, rand(1.1, 2.0)); c.rotation.set(0, rand(0, 6), 0);
     g.add(c);
   }
-  return shadowed(g);
+  const chips = [...g.children];             // they never move again: one mesh per chip face/colour instead of three draws a chip
+  const baked = new THREE.Group();
+  baked.add(...mergeMeshes(chips));
+  chips.forEach(c => c.geometry === CHIP_GEO && g.remove(c));
+  return shadowed(baked);
 }
 
 // ------------------------------------------------------------------ game money (clearly fictional)
@@ -298,12 +303,16 @@ function scoreSheet() {
 
 // Seats around the table, clockwise from you: front, left, across, right.
 // money/chips/letter positions in table coordinates; yaw turns things to face that player.
+// The biggest board (City Mode's plinth, about 15.7 across) leaves 7.1 units of table front and back, so the front and back seats keep
+// their things in a row along that strip, and everything is checked against the board and each other when placed (see `fit` below).
 const SEAT_LAYOUT = [
-  { money: [-3.6, 8.7], chips: [2.4, 8.6], letter: [8.2, 9.8], yaw: 0 },
-  { money: [-10.8, -1.4], chips: [-10.6, 2.0], letter: [-15.2, -0.8], yaw: -Math.PI / 2 },
-  { money: [3.2, -9.8], chips: [-3.0, -10.2], letter: [8.6, -10.8], yaw: Math.PI },
-  { money: [10.8, 1.2], chips: [10.2, -3.0], letter: [15.4, 0.8], yaw: Math.PI / 2 },
+  { money: [-6.0, 11.4], chips: [2.0, 11.0], letter: [11.6, 11.2], yaw: 0, ly: 0.2 },
+  { money: [-12.6, 1.4], chips: [-12.6, -5.6], letter: [-19.4, 1.0], yaw: -Math.PI / 2, ly: -Math.PI / 2 - 0.45 },
+  { money: [6.0, -11.4], chips: [-2.0, -11.0], letter: [-11.6, -11.2], yaw: Math.PI, ly: Math.PI + 0.2 },
+  { money: [12.6, -1.4], chips: [12.6, 5.6], letter: [19.4, -1.0], yaw: Math.PI / 2, ly: Math.PI / 2 - 0.45 },
 ];
+// layout guard: the square kept clear of props (half-size, a little more than City Mode's plinth) and the usable top of the table
+const BOARD_KEEP = 8.0, TABLE_X = 25.0, TABLE_Z = 14.0;
 const SEATS_FOR = { 1: [0], 2: [0, 2], 3: [0, 1, 3], 4: [0, 1, 2, 3] };
 // The angle (about the vertical axis) from the +z side of the table to the viewer's seat, snapped to a quarter turn; 0 for spectators.
 export function viewYaw(S) {
@@ -320,21 +329,66 @@ export function createProps(scene, { tableY }) {
   const group = new THREE.Group();
   group.position.y = tableY;
   scene.add(group);
-  const place = (obj, x, z, ry = 0) => { obj.position.set(x, obj.position.y, z); obj.rotation.y += ry; group.add(obj); return obj; };
+  // Where things stand, as boxes on the table plane. Nothing may touch the board's keep-out square, hang off the table or overlap another prop:
+  // `fit` slides a freshly placed thing to the nearest clear spot (a ring search around where it was meant to go) and claims the ground.
+  const taken = [];
+  const rectOf = (cx, cz, hx, hz) => ({ x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz });
+  const rectIn = (a, b, pad) => a.x0 < b.x1 + pad && a.x1 > b.x0 - pad && a.z0 < b.z1 + pad && a.z1 > b.z0 - pad;
+  const isFree = (r, pad) => r.x0 >= -TABLE_X && r.x1 <= TABLE_X && r.z0 >= -TABLE_Z && r.z1 <= TABLE_Z
+    && !rectIn(r, { x0: -BOARD_KEEP, x1: BOARD_KEEP, z0: -BOARD_KEEP, z1: BOARD_KEEP }, 0) && !taken.some(t => rectIn(r, t, pad));
+  function slideTo(r, pad = 0.25) {                 // → [dx, dz] to the nearest clear spot, or null
+    if (isFree(r, pad)) return [0, 0];
+    for (let d = 0.4; d <= 18; d += 0.4) for (let a = 0; a < 32; a++) {
+      const dx = Math.cos(a * Math.PI / 16) * d, dz = Math.sin(a * Math.PI / 16) * d;
+      if (isFree({ x0: r.x0 + dx, x1: r.x1 + dx, z0: r.z0 + dz, z1: r.z1 + dz }, pad)) return [dx, dz];
+    }
+    return null;
+  }
+  const rectOfObject = (o, grow = 0) => { o.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(o); return rectOf((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2, (b.max.x - b.min.x) / 2 + grow, (b.max.z - b.min.z) / 2 + grow); };
+  function fit(obj, grow = 0, tag = '') {
+    const r = rectOfObject(obj, grow), d = slideTo(r);
+    if (!d) { console.warn('props: no room for', tag || obj.name); return obj; }
+    obj.position.x += d[0]; obj.position.z += d[1];
+    taken.push({ x0: r.x0 + d[0], x1: r.x1 + d[0], z0: r.z0 + d[1], z1: r.z1 + d[1], tag });
+    return obj;
+  }
+  const place = (obj, x, z, ry = 0, grow = 0, tag = '') => { obj.position.set(x, obj.position.y, z); obj.rotation.y += ry; group.add(obj); return fit(obj, grow, tag); };
 
   // tiny animation runner (props animate independently of the board)
   const anims = [];
   const animate = (dur, step, done) => anims.push({ t0: performance.now(), dur, step, done });
 
+  // ---- seats: a money pile, chips and (when it gets bad) a debt letter for each player. Placed first: they claim their ground before the clutter does.
+  const seats = SEAT_LAYOUT.map(L => {
+    const pile = new THREE.Group();
+    pile.position.set(L.money[0], 0, L.money[1]); pile.rotation.y = L.yaw + rand(-0.3, 0.3);
+    const chips = chipStacks(Math.floor(rand(2, 5)));
+    chips.position.set(L.chips[0], 0, L.chips[1]); chips.rotation.y = rand(0, 6);
+    const letter = finalNotice();
+    letter.scale.setScalar(0.8);                                         // (the front and back strips of the table are only 6 deep)
+    letter.position.set(L.letter[0], 0, L.letter[1]); letter.rotation.y = L.ly;
+    group.add(pile, chips, letter);
+    // a pile grows to about 7.8 × 5.8 whatever the bills do: reserve that (turned with the seat), the chips and the letter as they stand
+    const side = Math.abs(Math.sin(L.yaw)) > 0.5;
+    const r = rectOf(pile.position.x, pile.position.z, side ? 2.9 : 3.9, side ? 3.9 : 2.9), d = slideTo(r);
+    if (d) { pile.position.x += d[0]; pile.position.z += d[1]; taken.push({ x0: r.x0 + d[0], x1: r.x1 + d[0], z0: r.z0 + d[1], z1: r.z1 + d[1], tag: 'money' }); }
+    fit(chips, 0.2, 'chips');
+    fit(letter, 0.3, 'letter');
+    const rest = new THREE.Vector3(letter.position.x, 0, letter.position.z);
+    pile.visible = chips.visible = false;
+    letter.visible = false;
+    return { L, pile, chips, letter, rest, bills: [], player: null, letterOn: false, baked: null, dirty: false };
+  });
+
   // ---- whiskey
-  const glass = place(whiskeyGlass(), 9.4, 4.6);
+  const glass = place(whiskeyGlass(), 9.4, 4.6, 0, 0.1, 'glass');
   const wet = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.08, 48), new THREE.MeshStandardMaterial({ color: '#1a0e06', transparent: true, opacity: 0.35, roughness: 0.1, depthWrite: false }));
-  wet.rotation.x = -Math.PI / 2; wet.position.set(9.7, 0.006, 4.9);
+  wet.rotation.x = -Math.PI / 2; wet.position.set(glass.position.x + 0.3, 0.006, glass.position.z + 0.3);
   group.add(wet);
   let level = 1, levelTarget = 1;          // 1 = freshly poured, 0.15 = nearly gone
 
   // ---- ashtray & the cigarette burning in it
-  const tray = place(ashtray(), -8.8, 6.4);
+  const tray = place(ashtray(), -13.5, 6.4, 0, 1.4, 'ashtray');             // (room left round it for the cigarette lying across the rim)
   const cig = new THREE.Group();
   const ember = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), new THREE.MeshStandardMaterial({ color: '#3a1a10', emissive: '#ff5a1f', emissiveIntensity: 6, roughness: 1 }));
   const ashTip = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.1, 0.32, 16), new THREE.MeshStandardMaterial({ color: '#77716b', roughness: 1 }));
@@ -350,7 +404,7 @@ export function createProps(scene, { tableY }) {
     const pack = packModel.clone(true);
     pack.traverse(o => { if (o.isMesh && /cigarette$/i.test(o.name)) o.visible = false; });
     pack.scale.setScalar(UNITS_PER_M); pack.rotation.x = -Math.PI / 2; pack.position.y = 0.6;
-    place(shadowed(pack), -12.2, -6.2, 0.5);
+    place(shadowed(pack), -17.0, -8.0, 0.5, 0, 'pack');
     if (!loose) return;
     // re-centre the model: tobacco end at the origin, filter along +y
     const c = loose.clone();
@@ -365,7 +419,7 @@ export function createProps(scene, { tableY }) {
     // rest it across the rim: filter outside, lit end over the ash, tilted down into the tray
     const phi = -0.6, dir = new THREE.Vector3(Math.cos(phi), 0, -Math.sin(phi));
     cig.rotation.set(0, phi, -Math.PI / 2 + 0.13, 'XYZ');
-    const rim = new THREE.Vector3(-8.8, 0.62, 6.4).addScaledVector(dir, 1.5);
+    const rim = new THREE.Vector3(tray.position.x, 0.62, tray.position.z).addScaledVector(dir, 1.5);
     cig.position.copy(rim).addScaledVector(dir, -0.55 * cigLen).add(new THREE.Vector3(0, -0.55 * cigLen * Math.sin(0.13), 0));
     setBurn(burn);
   });
@@ -382,13 +436,13 @@ export function createProps(scene, { tableY }) {
   scene.add(plume);
 
   // ---- the rest of the clutter
-  loadModel('vintage_lighter').then(l => { l.scale.setScalar(UNITS_PER_M); l.rotation.x = -Math.PI / 2; l.position.y = 0.18; place(shadowed(l), -9.6, -7.2, 2.2); });
-  loadModel('round_spectacles').then(s => { s.scale.setScalar(UNITS_PER_M); s.position.y = 0.58; place(shadowed(s), 12.0, -6.4, 2.6); });
+  loadModel('vintage_lighter').then(l => { l.scale.setScalar(UNITS_PER_M); l.rotation.x = -Math.PI / 2; l.position.y = 0.18; place(shadowed(l), -9.8, -9.4, 2.2, 0, 'lighter'); });
+  loadModel('round_spectacles').then(s => { s.scale.setScalar(UNITS_PER_M); s.position.y = 0.58; place(shadowed(s), 15.0, -8.4, 2.6, 0, 'spectacles'); });
   let secondHand = null, minuteHand = null, hourHand = null;
   loadModel('vintage_pocket_watch').then(w => {
     w.scale.setScalar(UNITS_PER_M); w.rotation.x = -Math.PI / 2; w.position.y = 0.17;
     w.traverse(o => { if (/second_hand/.test(o.name)) secondHand = o; if (/minute_hand/.test(o.name)) minuteHand = o; if (/hour_hand/.test(o.name)) hourHand = o; });
-    place(shadowed(w), 12.8, 4.6, -0.7);
+    place(shadowed(w), 14.6, 6.4, -0.7, 0, 'watch');
   });
   loadModel('office_notepads').then(n => {
     let pad = null;
@@ -401,21 +455,28 @@ export function createProps(scene, { tableY }) {
     const sheet = scoreSheet();
     sheet.position.set((box.min.x + box.max.x) / 2, box.max.y + 0.01, (box.min.z + box.max.z) / 2 + 0.3);
     holder.add(sheet);
-    place(holder, -6.4, -11.0, 0.35);
+    place(holder, -17.5, -3.0, 0.35, 0, 'notepad');
   });
 
-  // ---- seats: a money pile, chips and (when it gets bad) a debt letter for each player
-  const seats = SEAT_LAYOUT.map(L => {
-    const pile = new THREE.Group();
-    pile.position.set(L.money[0], 0, L.money[1]); pile.rotation.y = L.yaw + rand(-0.3, 0.3);
-    const chips = chipStacks(Math.floor(rand(2, 5)));
-    chips.position.set(L.chips[0], 0, L.chips[1]); chips.rotation.y = rand(0, 6);
-    const letter = finalNotice();
-    letter.visible = false;
-    group.add(pile, chips, letter);
-    pile.visible = chips.visible = false;
-    return { L, pile, chips, letter, bills: [], player: null, letterOn: false };
-  });
+  // a pile at rest is fused into one mesh per denomination (up to 60 bills would be 60 draws, and again for the shadow and AO passes);
+  // the moment a bill is added, taken or flies, the loose bills are shown again, and the pile is re-fused once everything has landed
+  function unbake(seat) {
+    seat.dirty = true;
+    if (!seat.baked) return;
+    seat.pile.remove(seat.baked);
+    seat.baked.children.forEach(m => m.geometry.dispose());
+    seat.baked = null;
+    seat.bills.forEach(b => (b.visible = true));
+  }
+  function rebake(seat) {
+    seat.dirty = false;
+    if (seat.bills.length < 4) return;
+    const parts = mergeMeshes(seat.bills);
+    seat.baked = new THREE.Group();
+    seat.baked.add(...parts);
+    seat.pile.add(seat.baked);
+    seat.bills.forEach(b => (b.visible = false));
+  }
   // where bill k sits in a pile: a tidy stack that spreads out as it grows
   const slot = k => {
     const spread = Math.min(1.5, 0.35 + k * 0.03);
@@ -427,6 +488,7 @@ export function createProps(scene, { tableY }) {
     return m;
   };
   function addBill(seat, from = null) {
+    unbake(seat);
     const k = seat.bills.length, s = slot(k), m = from || newBill();
     const target = new THREE.Vector3(s.x, s.y, s.z);
     seat.pile.add(m);
@@ -449,6 +511,8 @@ export function createProps(scene, { tableY }) {
   function takeBill(seat) {
     const m = seat.bills.pop();
     if (!m) return null;
+    unbake(seat);
+    m.visible = true;
     m.userData.world = m.getWorldPosition(new THREE.Vector3());
     seat.pile.remove(m);
     return m;
@@ -466,9 +530,9 @@ export function createProps(scene, { tableY }) {
     if (seat.letterOn === on) return;
     seat.letterOn = on;
     const { L, letter } = seat;
-    const rest = new THREE.Vector3(L.letter[0], 0, L.letter[1]);
+    const rest = seat.rest;
     const out = rest.clone().add(new THREE.Vector3(Math.sin(L.yaw), 0, Math.cos(L.yaw)).multiplyScalar(9));   // off the table edge
-    const yaw = L.yaw - 0.5 + rand(-0.15, 0.15);
+    const yaw = L.ly + rand(-0.08, 0.08);
     letter.visible = true;
     if (on && synced) sfx.paper();
     const from = on ? out : rest, to = on ? rest : out;
@@ -489,7 +553,7 @@ export function createProps(scene, { tableY }) {
     const seatIds = SEATS_FOR[n] || [];
     seats.forEach(s => { s.player = null; });
     order.forEach((p, k) => { seats[seatIds[k]].player = p; });
-    for (const s of seats) { s.pile.visible = s.chips.visible = !!s.player; if (!s.player) { s.bills.forEach(b => s.pile.remove(b)); s.bills = []; showLetter(s, false); } }
+    for (const s of seats) { s.pile.visible = s.chips.visible = !!s.player; if (!s.player) { unbake(s); s.bills.forEach(b => s.pile.remove(b)); s.bills = []; showLetter(s, false); } }
 
     // money: losers' bills fly to the winners; the bank covers the rest
     const live = seats.filter(s => s.player);
@@ -525,6 +589,7 @@ export function createProps(scene, { tableY }) {
   const emberWorld = new THREE.Vector3();
   return {
     group, sync,
+    setDetail(tier) { const n = tier === 'low' ? 80 : 200; if (plume.geometry.instanceCount !== n) plume.geometry.instanceCount = n; },   // a thinner smoke trail on Low
     // which way a player sits (unit vector from the board centre toward them) and where their pile is
     seatDir(id) { const s = seats.find(x => x.player && x.player.id === id); return s ? new THREE.Vector3(Math.sin(s.L.yaw), 0, Math.cos(s.L.yaw)) : null; },
     seatPosition(id) { const s = seats.find(x => x.player && x.player.id === id); return s ? s.pile.getWorldPosition(new THREE.Vector3()) : null; },
@@ -535,6 +600,7 @@ export function createProps(scene, { tableY }) {
         a.step(q);
         if (q >= 1) { anims.splice(k, 1); a.done && a.done(); }
       }
+      if (!anims.length) for (const seat of seats) if (seat.dirty) rebake(seat);
       if (Math.abs(burn - burnTarget) > 0.001) { burn += (burnTarget - burn) * 0.02; setBurn(burn); }
       if (Math.abs(level - levelTarget) > 0.001) {
         level += (levelTarget - level) * (levelTarget > level ? 0.05 : 0.01);    // refills pour fast, sipping is slow

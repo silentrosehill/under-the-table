@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import * as CANNON from 'cannon-es';
+import { speed } from './speed.js';
 
 const SIZE = 0.48;                 // 19 mm casino-size dice (1 unit = 4 cm)
 const G = 9.82 * 25;               // gravity in units/s²
@@ -113,14 +114,14 @@ export function createDice(scene, { surfaceY = 0, area = 4.3, sfx }) {
       FACE_NORMALS.forEach((n, i) => { const y = n.clone().applyQuaternion(q).y; if (y > bestY) { bestY = y; best = i; } });
       d.mesh.quaternion.setFromUnitVectors(FACE_NORMALS[FACE_VALUES.indexOf(values[k])], FACE_NORMALS[best]);
     });
-    play = { t0: performance.now(), ...sim, hitIdx: 0 };
-    return sim.frames.length * STEP * 1000;
+    play = { t0: performance.now(), ...sim, hitIdx: 0, slow: speed() };   // slow: the replay is stretched by the game speed
+    return sim.frames.length * STEP * 1000 * play.slow;
   }
 
   const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
   function update(now) {
     if (!play) return;
-    const t = (now - play.t0) / 1000, f = t / STEP;
+    const t = (now - play.t0) / 1000 / play.slow, f = t / STEP;
     const i = Math.min(play.frames.length - 1, Math.floor(f)), j = Math.min(play.frames.length - 1, i + 1), a = f - Math.floor(f);
     dice.forEach((d, k) => {
       const A = play.frames[i][k], B = play.frames[j][k];

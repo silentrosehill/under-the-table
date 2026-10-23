@@ -1,6 +1,7 @@
-// The back room's sound, synthesized with Web Audio: no audio files, nothing to download or license.
-// Three layers share one master bus: the room itself (low tone, the bulb's hum), a record playing
-// slow jazz under its own crackle, and foley for what happens on the table. Buttons tick like
+// The back room's sound. Three layers share one master bus: the room itself (low tone, the bulb's hum, synthesized),
+// a record playing slow jazz under its own crackle (synthesized), and foley for what happens on the table: recorded
+// samples (public/assets/sfx/, all CC0 / public domain / CC-BY, see CREDITS.md) with random variants, and the old
+// synthesized version of every sound as the fallback while a sample loads or if it fails. Buttons tick like
 // typewriter keys. Nothing plays until the first click or key press (browsers require a gesture).
 const pref = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v === '1'; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch {} };
@@ -35,6 +36,65 @@ function buffer(sec, fill, channels = 1) {
   return b;
 }
 const loop = (buf, dest) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.connect(dest); s.start(); return s; };
+
+// ------------------------------------------------------------------ recorded samples
+// Small mono mp3s, fetched and decoded lazily after the first gesture, cached, and played through the same buses as
+// the synthesized sounds (so mute and the volume sliders cover them). A sample that is not ready, or failed, is
+// simply skipped and the synthesized version plays instead.
+const SAMPLE_DIR = '/assets/sfx/';
+const SAMPLE_IDS = [
+  'dice_shake1', 'dice_shake2', 'dice_shake3', 'die0', 'die1', 'die2', 'die3', 'hop1', 'hop2', 'hop3', 'land1', 'land2', 'fly1', 'fly2', 'fly3',
+  'stamp1', 'stamp2', 'stamp3', 'build1', 'build2', 'build3', 'hammer1', 'hammer2', 'hammer3', 'hammer4', 'woodhammer1', 'woodhammer2', 'constructbed',
+  'cash1', 'cash2', 'cash3', 'pay1', 'pay2', 'pay3', 'chips1', 'chips2', 'chips3', 'coin1', 'coin2', 'coin3', 'register', 'banknotes1', 'banknotes2',
+  'cdraw1', 'cdraw2', 'cdraw3', 'cdraw4', 'cflip1', 'cflip2', 'cflip3', 'card1', 'card2', 'shuffle', 'cplace1', 'cplace2', 'paper1', 'paper2', 'paper3', 'paper4',
+  'key1', 'key2', 'key3', 'hover1', 'hover2', 'hover3', 'tick1', 'tick2', 'tick4', 'wfinal', 'pop1', 'pop2',
+  'clink0', 'clink1', 'clink2', 'bottle', 'gulp', 'pour', 'irondoor', 'doorlock', 'keys1', 'keys2', 'slam1', 'slam2', 'cardoor', 'horn',
+  'creak1', 'creak2', 'creak3', 'step1', 'step2', 'step3', 'step4', 'wstep1', 'wstep2', 'wstep3', 'latch', 'click',
+  'metal1', 'metal2', 'glassbreak', 'crumble1', 'crumble2', 'crumble3', 'collapse', 'spray', 'boom1', 'boom2',
+  'shot1', 'shot2', 'shot3', 'gunfire', 'siren1', 'siren2', 'applause', 'cheer', 'fanfare', 'trumpet', 'camera', 'sting', 'hitlow1', 'hitlow2', 'hitmid',
+  'laugh1', 'laugh2', 'needle',
+];
+const SAMPLE_TRIM = 0.32;                                   // the files are normalised hot; this sits them level with the synthesized foley
+const buffers = new Map();                                  // id -> AudioBuffer, or null once it has failed
+const pending = new Map();
+function loadSample(id) {
+  if (!ctx || buffers.has(id)) return Promise.resolve(buffers.get(id) || null);
+  if (!pending.has(id)) {
+    pending.set(id, fetch(SAMPLE_DIR + id + '.mp3')
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(b => ctx.decodeAudioData(b))
+      .then(buf => { buffers.set(id, buf); return buf; })
+      .catch(() => { buffers.set(id, null); return null; })
+      .finally(() => pending.delete(id)));
+  }
+  return pending.get(id);
+}
+function preload() {                                        // a few at a time, so the game's own requests are not starved
+  const queue = SAMPLE_IDS.filter(id => !buffers.has(id));
+  const worker = async () => { while (queue.length) await loadSample(queue.shift()); };
+  for (let k = 0; k < 4; k++) worker();
+}
+// a random variant of base1, base2 … that is ready (and not the one just played), as an id; null when none is
+const lastVariant = {};
+function v(base, ...nums) {
+  const ids = nums.map(n => base + n).filter(id => buffers.get(id));
+  if (!ids.length) { for (const n of nums) if (!buffers.has(base + n)) loadSample(base + n); return null; }
+  const pool = ids.length > 1 ? ids.filter(id => id !== lastVariant[base]) : ids;
+  return (lastVariant[base] = pick(pool));
+}
+// play a sample at time t: vol is relative to a normal foley hit, rate shifts the pitch, a little random variation on both
+function S(t, id, vol = 1, { rate = 1, vary = 0.035, dest = null, delay = 0 } = {}) {
+  const b = id && buffers.get(id);
+  if (!b) { if (id && !buffers.has(id)) loadSample(id); return false; }
+  const src = ctx.createBufferSource();
+  src.buffer = b;
+  src.playbackRate.value = rate * 2 ** (rand(-1, 1) * vary);
+  const g = gain(vol * SAMPLE_TRIM * (1 + rand(-0.1, 0.1)));
+  src.connect(g).connect(dest || fxBus);
+  src.start(t + delay);
+  src.onended = () => { try { g.disconnect(); } catch {} };
+  return true;
+}
 
 // filtered noise: scrapes, paper, brushes, thuds
 function hiss(t, { dur = 0.05, vol = 0.1, type = 'bandpass', freq = 2000, freqTo, q = 1, attack = 0.002, dest = fxBus } = {}) {
@@ -284,12 +344,25 @@ function wake() {
   if (!ac() || started) return;
   started = true;
   startRoom();
+  preload();
+  loadSample('needle').then(() => { if (ctx && !muted && musicOn && ctx.currentTime < 20) S(ctx.currentTime + 0.1, 'needle', 3, { dest: recordOut, vary: 0 }); });   // the needle comes down on the record
 }
 addEventListener('pointerdown', wake);
 addEventListener('keydown', wake);
 
 // UI buttons click like typewriter keys
 addEventListener('click', e => { if (e.target.closest && e.target.closest('button, select, input[type=checkbox]')) sfx.key(); }, true);
+// … and a soft rollover when the mouse moves onto one
+let hoverEl = null, hoverAt = 0;
+addEventListener('pointerover', e => {
+  if (e.pointerType === 'touch') return;
+  const el = e.target.closest && e.target.closest('button, select');
+  if (!el || el === hoverEl) { if (!el) hoverEl = null; return; }
+  hoverEl = el;
+  const now = performance.now();
+  if (el.disabled || now - hoverAt < 70) return;
+  hoverAt = now; sfx.hover();
+}, true);
 
 // every foley sound: skip when muted or before the first gesture
 const fx = fn => (...a) => { if (!ctx || muted) return; fn(ctx.currentTime + 0.01, ...a); };
@@ -355,7 +428,10 @@ export const sfx = {
     if (ctx) recordOut.gain.setTargetAtTime(recordGain(), ctx.currentTime, 0.3);
     return musicOn;
   },
+};
 
+// ------------------------------------------------------------------ the synthesized foley (the fallback for every recorded sound)
+const synth = {
   // dice leave the hand: a rattle in the palm, then the physics plays each hit with click()
   dice: fx(t => { for (let k = 0; k < 3; k++) ping(t + k * 0.04, rand(1900, 2600), { vol: 0.02, dur: 0.02 }); hiss(t, { type: 'bandpass', freq: 1500, vol: 0.03, attack: 0.04, dur: 0.12 }); }),
   click: fx((t, k = 0.6) => {                        // a die hitting cardboard
@@ -541,4 +617,114 @@ export const sfx = {
     humGain.gain.setValueAtTime(1, t); humGain.gain.linearRampToValueAtTime(1 - depth * 6, t + 0.02); humGain.gain.linearRampToValueAtTime(1, t + 0.15);
     hiss(t, { type: 'bandpass', freq: 6000, q: 2, vol: 0.02, dur: 0.012 });
   }),
+  hover: () => {},                                   // (recorded only) a button under the mouse
+  bankrupt: fx(t => synth.chaos(t)),                 // a player goes under
+  taxi: fx(t => { ping(t, 430, { type: 'square', vol: 0.02, dur: 0.18 }); ping(t + 0.3, 540, { type: 'square', vol: 0.02, dur: 0.18 }); }),   // two beeps of a horn
 };
+
+// ------------------------------------------------------------------ the recorded versions
+// over[name] plays the recorded version and returns true (the synthesized one is skipped), or false when its main
+// sample is not ready (the synthesized one plays instead). plus[name] lays samples over the synthesized sound.
+const first = (...r) => r[0];                                // run every S() call, report the first (the main sample)
+const any = (...r) => r.some(Boolean);
+const chord = (t, notes, vol, dur = 2.4) => notes.forEach((m, k) => epiano(t + k * 0.012, m, vol, dur, fxBus));
+const coin = () => v('coin', 1, 2, 3);
+
+// the casino's events: warm for the good ones (till, brass, a crowd), cold for the bad (low hits, sirens, breaking glass)
+const CASINO = {
+  whim: t => { const ok = first(S(t, 'register', 1.1), S(t + 0.08, coin(), 0.6), S(t + 0.5, 'laugh1', 0.85)); chord(t + 1, [50, 57, 62, 65, 69], 0.025); return ok; },   // the till, a rich man's chuckle, a soft chord
+  mayor: t => first(S(t, 'fanfare', 1.1), S(t + 0.95, 'camera', 0.8), S(t + 1.1, 'applause', 0.55)),
+  boom: t => { const ok = first(S(t, 'cheer', 1), S(t + 0.15, 'applause', 0.9), S(t + 0.4, coin(), 0.5)); chord(t + 0.1, [55, 62, 66, 71, 74, 78], 0.03, 3); return ok; },
+  police: t => first(S(t, 'siren1', 1.2), S(t, 'hitlow2', 0.6)),
+  gang: t => first(S(t, 'hitlow1', 0.9), S(t + 0.28, 'spray', 0.9), S(t + 0.5, 'glassbreak', 1)),   // a low hit, the spray can, a window
+  onetoomany: t => {                                         // a glass clink, a gulp, a bottle set down, then a slurred low slide
+    const ok = first(S(t, v('clink', 0, 1, 2), 1), S(t + 0.04, v('clink', 0, 1, 2), 0.6), S(t + 0.55, 'gulp', 0.9), S(t + 1, 'bottle', 0.8));
+    const o = osc('sawtooth', 220), lp = biquad('lowpass', 700), e = ctx.createGain();
+    o.frequency.setValueAtTime(220, t + 0.7); o.frequency.exponentialRampToValueAtTime(110, t + 1.9);
+    e.gain.setValueAtTime(0.0001, t + 0.7); e.gain.exponentialRampToValueAtTime(0.03, t + 1); e.gain.exponentialRampToValueAtTime(0.0001, t + 2);
+    o.connect(lp).connect(e).connect(fxBus); o.start(t + 0.7); o.stop(t + 2.1);
+    return ok;
+  },
+  bombing: t => { const ok = first(S(t, 'boom1', 1.5), S(t + 0.5, 'crumble1', 1.1), S(t + 0.8, 'crumble2', 1), S(t + 1.15, 'crumble3', 0.8)); ping(t, 55, { freqTo: 28, vol: 0.18, dur: 1.4 }); return ok; },
+  gangwar: t => first(S(t, 'boom2', 1.2), S(t + 0.5, 'gunfire', 1), S(t + 1.8, 'siren2', 0.5)),   // (the global wheel's Gang War)
+};
+// one for each card, and for evictions, audits and shoot-outs
+const STING = {
+  gang: t => first(S(t, 'hitlow1', 0.8), S(t + 0.3, 'metal1', 0.9), S(t + 0.62, 'metal2', 0.5)),   // a low hit and a crowbar
+  squatters: t => first(S(t, v('creak', 1, 2), 1), S(t + 0.8, v('wstep', 1, 2, 3), 0.8), S(t + 1.1, v('wstep', 1, 2, 3), 0.7), S(t + 1.5, v('fly', 1, 2, 3), 0.8), S(t + 1.8, v('fly', 1, 2, 3), 0.6)),   // a door, footsteps, rummaging
+  protection: t => first(S(t, 'cardoor', 1), S(t + 0.45, 'click', 0.5), S(t + 0.6, 'siren2', 0.7)),   // a car door, a radio, a siren far off
+  squattersin: t => first(S(t, 'creak3', 1), S(t + 0.7, 'glassbreak', 0.9)),
+  crime: t => { const ok = first(S(t, 'siren2', 1.1), S(t + 0.2, 'hitlow2', 0.5)); hiss(t, { type: 'highpass', freq: 3000, vol: 0.05, attack: 1.2, dur: 1.4 }); return ok; },
+  billionaire: t => { const ok = first(S(t, 'register', 1.1), S(t + 0.1, coin(), 0.6), S(t + 0.5, 'laugh2', 0.9)); chord(t + 1, [50, 57, 62, 65, 69], 0.025); return ok; },
+  gift: t => first(S(t, 'camera', 0.8), S(t + 0.18, 'camera', 0.7), S(t + 0.36, 'camera', 0.6), S(t + 0.5, 'fanfare', 1), S(t + 1.1, 'applause', 0.55)),
+  bribe: t => first(S(t, v('paper', 1, 2, 3, 4), 1), S(t + 0.5, v('banknotes', 1, 2), 1), S(t + 1, coin(), 0.7), S(t + 1.1, 'hitmid', 0.6)),   // an envelope, notes, a low "hmm"
+  shootout: t => first(S(t, 'gunfire', 1.1), S(t + 0.15, 'shot3', 0.8), S(t + 0.45, 'shot1', 0.8), S(t + 0.7, 'shot2', 0.8), S(t + 0.9, 'metal2', 0.4, { rate: 1.6 }), S(t + 1.2, 'siren2', 0.55)),   // shots, a ricochet, a siren
+  evict: t => first(S(t, 'slam1', 1.2), S(t + 0.05, 'slam2', 0.6)),
+  audit: t => { let ok = false; for (let k = 0; k < 6; k++) ok = S(t + k * 0.07, v('key', 1, 2, 3), 0.9) || ok; return any(S(t + 0.6, v('stamp', 1, 2, 3), 1.2), ok); },   // typewriter, then a stamp
+  classic: t => S(t, v('cplace', 1, 2), 0.9),
+};
+const over = {
+  dice: t => S(t, v('dice_shake', 1, 2, 3), 0.9),
+  click: (t, k = 0.6) => S(t, v('die', 0, 1, 2, 3), 0.3 + 1.1 * k, { rate: rand(0.9, 1.15), vary: 0.06 }),
+  hop: t => S(t, v('hop', 1, 2, 3), 0.55),
+  land: t => first(S(t, v('land', 1, 2), 0.9), S(t + 0.01, v('hop', 1, 2, 3), 0.4, { rate: 0.8 })),
+  fly: t => S(t, v('fly', 1, 2, 3), 0.7),
+  cash: t => first(S(t, v('cash', 1, 2, 3), 0.9), S(t + 0.04, coin(), 0.5)),
+  pay: t => S(t, v('pay', 1, 2, 3), 1),
+  buy: t => S(t, v('stamp', 1, 2, 3), 1.2),
+  build: t => S(t, v('build', 1, 2, 3), 0.9),
+  construct: t => {                                          // hammering over a building site, a low rumble under it
+    let ok = S(t, 'constructbed', 0.6);
+    for (const at of [0, 0.17, 0.29, 0.55, 0.68, 0.81, 1.22, 1.35]) ok = S(t + at, Math.random() < 0.5 ? v('hammer', 1, 2, 3, 4) : v('woodhammer', 1, 2), 0.8, { rate: rand(0.95, 1.05) }) || ok;
+    hiss(t + 0.1, { type: 'lowpass', freq: 85, vol: 0.2, attack: 0.35, dur: 1.5 }); ping(t + 0.1, 44, { vol: 0.09, attack: 0.3, dur: 1.5 });
+    return ok;
+  },
+  card: t => S(t, v('card', 1, 2), 0.8),
+  jail: t => first(S(t, 'irondoor', 1.2), S(t + 0.32, v('keys', 1, 2), 0.7), S(t + 0.6, 'doorlock', 0.9)),   // the cell door, keys, the lock
+  turn: t => first(S(t, v('clink', 0, 1, 2), 0.9), S(t + 0.14, v('clink', 0, 1, 2), 0.5)),
+  ice: t => S(t, v('clink', 0, 1, 2), 0.6),
+  pour: t => S(t, 'pour', 1),
+  rumble: t => {                                             // a building coming down
+    const ok = first(S(t, v('crumble', 1, 2), 1.2), S(t + 0.15, v('crumble', 1, 2), 0.9), S(t + 0.3, 'collapse', 0.7));
+    hiss(t, { type: 'lowpass', freq: 90, vol: 0.14, attack: 0.25, dur: 1.4 }); ping(t, 46, { vol: 0.07, attack: 0.2, dur: 1.4 });
+    return ok;
+  },
+  pop: t => S(t, v('pop', 1, 2), 0.8),
+  coins: t => first(S(t, v('chips', 1, 2, 3), 1), S(t + 0.12, v('chips', 1, 2, 3), 0.8), S(t + 0.3, coin(), 0.6), S(t + 0.42, v('banknotes', 1, 2), 0.8)),
+  win: t => first(S(t, 'fanfare', 1.1), S(t + 0.5, 'applause', 1)),
+  paper: t => S(t, v('paper', 1, 2, 3, 4), 0.9),
+  shuffle: t => S(t, 'shuffle', 1),
+  wheelTick: (t, final) => final ? first(S(t, 'wfinal', 0.9), S(t, v('chips', 1, 2, 3), 0.4)) : S(t, v('tick', 1, 2, 4), 0.6, { rate: rand(0.95, 1.15) }),
+  cardDraw: t => S(t, v('cdraw', 1, 2, 3, 4), 0.9),
+  cardFlip: t => S(t, v('cflip', 1, 2, 3), 0.9),
+  mafiaNote: t => {                                          // paper under the door, footsteps going away
+    const ok = S(t, v('paper', 1, 2, 3, 4), 0.75);
+    for (let k = 0; k < 6; k++) S(t + 1.1 + k * 0.42 + (k % 2) * 0.03, v('step', 1, 2, 3, 4), 0.8 - k * 0.1);
+    return ok;
+  },
+  key: t => S(t, v('key', 1, 2, 3), 0.45, { rate: rand(0.96, 1.08) }),
+  hover: t => S(t, v('hover', 1, 2, 3), 0.5),
+  bankrupt: t => first(S(t, 'trumpet', 0.9), S(t + 0.1, 'hitlow2', 0.9)),
+  taxi: t => first(S(t, 'horn', 0.9), S(t + 0.35, 'horn', 0.8, { rate: 1.06 })),
+  casinoEvent: (t, key) => { const f = CASINO[key] || STING[key]; return f ? f(t) : false; },   // (the global wheel passes its own keys too)
+  cardSting: (t, key) => (STING[key] || STING.classic)(t),
+};
+const plus = {
+  chaos: t => { S(t, 'hitlow1', 1.1); S(t + 0.02, 'metal1', 0.6, { rate: 0.7 }); },
+  mafia: t => { S(t, 'sting', 1); S(t + 1.1, 'click', 0.5); },
+  lighter: t => { S(t, 'latch', 0.8); S(t + 0.25, 'click', 0.5); },
+  roulette: t => { S(t + 2.28, v('chips', 1, 2, 3), 0.9); S(t + 2.36, v('chips', 1, 2, 3), 0.7); S(t + 2.48, 'wfinal', 0.7); },   // the ball drops into its pocket
+};
+let warned = false;
+for (const name of Object.keys(synth)) {
+  sfx[name] = (...a) => {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime + 0.01;
+    let done = false;
+    try { done = !!(over[name] && over[name](t, ...a)); if (plus[name]) plus[name](t, ...a); } catch (e) { if (!warned) { warned = true; console.warn('sfx:', name, e); } }
+    if (!done) synth[name](...a);
+  };
+}
+// what is loaded, for checking
+sfx.stats = () => ({ total: SAMPLE_IDS.length, loaded: SAMPLE_IDS.filter(id => buffers.get(id)), failed: SAMPLE_IDS.filter(id => buffers.get(id) === null), pending: SAMPLE_IDS.filter(id => !buffers.has(id)) });
+sfx.sampleIds = SAMPLE_IDS;

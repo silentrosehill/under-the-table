@@ -3,46 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Monopoly Party</title>
+  <title>Under The Table</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8E%B2%3C/text%3E%3C/svg%3E">
   <link href="assets/fonts/fonts.css" rel="stylesheet">
   <link rel="stylesheet" href="cardface.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="hud.css">
 </head>
 <body data-theme="noir">
   <header id="topbar">
-    <div class="brand">Monopoly Party <small data-i18n>the back room</small></div>
-    <div class="top-right">
-    <button class="tool" id="topSoundBtn" data-tipinfo="tool-sound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16.5 9a4.5 4.5 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11"/><path class="off" d="M17 9l5 6M22 9l-5 6"/></svg></button>
-    <label class="skin-picker"><span data-i18n>View</span>
-      <select id="viewSelect"><option value="table" data-i18n>Table</option><option value="city" data-i18n>City</option></select>
-    </label>
-    <label class="skin-picker" data-tipinfo="tool-camera"><span data-i18n>Camera</span>
-      <select id="camMode"><option value="cinematic" data-i18n>Cinematic</option><option value="fixed" data-i18n>Fixed</option></select>
-    </label>
-    <label class="skin-picker" id="labelStyleWrap" hidden><span data-i18n>Labels</span>
-      <select id="labelStyle"><option value="street" data-i18n>Names on the street</option><option value="signs" data-i18n>Floating signs</option></select>
-    </label>
-    <label class="skin-picker scale-pick"><span data-i18n>Text size</span>
-      <input type="range" class="ui-scale-range" min="85" max="140" step="5" value="100" aria-label="Text size"><output class="ui-scale-out">100%</output>
-    </label>
-    <label class="skin-picker"><span data-i18n>Language</span>
-      <select id="langSelect"><option value="en">English</option><option value="fr">Français</option></select>
-    </label>
-    <label class="skin-picker"><span data-i18n>Graphics</span>
-      <select id="themeSelect">
-        <option value="auto">Auto</option>
-        <option value="high">High</option>
-        <option value="medium">Medium</option>
-        <option value="low">Low</option>
-      </select>
-    </label>
+    <div class="brand"><span class="brand-mark" data-ic="dice"></span><span class="brand-name">Under The Table</span> <small data-i18n>the back room</small></div>
+    <div class="tb-center"><div id="roundChip"></div><div id="turnBanner" hidden></div></div>
+    <div class="tb-right">
+      <div id="hudTools">
+        <button class="tool" id="resetViewBtn" data-tipinfo="tool-reset" data-ic="compass"></button>
+        <button class="tool" id="emoteBtn" data-tipinfo="tool-emote" data-ic="chat"></button>
+        <button class="tool" id="drawerBtn" data-tipinfo="tool-drawer" data-ic="log"></button>
+        <button class="tool" id="muteBtn" data-tipinfo="tool-mute" data-ic="speaker"></button>
+        <button class="tool" id="quitBtn" data-tipinfo="tool-quit" data-ic="door"></button>
+      </div>
+      <button class="tool" id="topSoundBtn" data-tipinfo="tool-sound" data-ic="speaker"></button>
+      <button class="tool tool-gear" id="settingsBtn" data-tipinfo="tool-settings" data-ic="gear" aria-haspopup="dialog"></button>
     </div>
   </header>
 
   <!-- JOIN -->
   <section id="joinScreen" class="screen card-screen" hidden>
     <div class="panel narrow">
-      <h1 class="title">Monopoly Party</h1>
+      <h1 class="title">Under The Table</h1>
       <p class="muted" data-i18n>Up to four at the table, from anywhere. Whoever sits down first runs the game.</p>
       <form id="joinForm">
         <input id="nameInput" maxlength="16" placeholder="Your name" data-i18n-ph="Your name" autocomplete="off" required>
@@ -58,8 +46,9 @@
     <div class="panel wide">
       <h1 class="title" data-i18n>Lobby</h1>
       <div class="lobby-extras">
-        <button class="btn small ghost" id="guideBtn" type="button">🂠 <span data-i18n>Cards &amp; events</span></button>
-        <label class="scale-pick"><span data-i18n>Text size</span> <input type="range" class="ui-scale-range" min="85" max="140" step="5" value="100" aria-label="Text size"><output class="ui-scale-out">100%</output></label>
+        <button class="btn small ghost" id="guideBtn" type="button"><span data-ic="book"></span><span data-i18n>Cards &amp; events</span></button>
+        <button class="btn small ghost" id="newsBtn" type="button"><span data-ic="newspaper"></span><span data-i18n>What's new</span></button>
+        <label class="scale-pick"><span data-ic="textsize"></span><span data-i18n>Text size</span> <input type="range" class="ui-scale-range" min="85" max="140" step="5" value="100" aria-label="Text size"><output class="ui-scale-out">100%</output></label>
       </div>
       <div class="mode-switch" id="modeSwitch">
         <button data-mode="ffa"><b data-i18n>Free-for-all</b><small data-i18n>Every player for themselves</small></button>
@@ -67,11 +56,11 @@
       </div>
       <div class="lobby-grid">
         <div>
-          <h3><span data-i18n>Players</span> <span id="playerCount" class="muted"></span></h3>
+          <h3><span class="h-ic" data-ic="users"></span><span data-i18n>Players</span> <span id="playerCount" class="muted"></span></h3>
           <div id="lobbyPlayers"></div>
           <div class="row lobby-tools">
-            <button id="addBotBtn" class="btn small ghost" data-i18n>Add a bot</button>
-            <button id="shuffleBtn" class="btn small ghost" data-i18n>Shuffle teams</button>
+            <button id="addBotBtn" class="btn small ghost"><span data-ic="robot"></span><span data-i18n>Add a bot</span></button>
+            <button id="shuffleBtn" class="btn small ghost"><span data-ic="shuffle"></span><span data-i18n>Shuffle teams</span></button>
           </div>
           <h3 data-i18n>Your token</h3>
           <div id="tokenPicker" class="picker"></div>
@@ -79,7 +68,7 @@
           <div id="colorPicker" class="picker"></div>
         </div>
         <div>
-          <h3 data-i18n>Map</h3>
+          <h3><span class="h-ic" data-ic="map"></span><span data-i18n>Map</span></h3>
           <div id="mapPicker" class="map-picker"></div>
           <div id="teamSettings" class="team-settings">
             <h3 data-i18n>Team rules</h3>
@@ -95,8 +84,8 @@
               </select>
             </label>
           </div>
-          <h3 data-i18n>Rules</h3>
-          <label class="row"><span data-i18n>Starting cash</span>
+          <h3><span class="h-ic" data-ic="sliders"></span><span data-i18n>Rules</span></h3>
+          <label class="row"><span class="row-l"><span class="row-ic" data-ic="cash"></span><span data-i18n>Starting cash</span></span>
             <select id="startMoney">
               <option value="1000000">1M</option>
               <option value="1500000">1.5M</option>
@@ -105,7 +94,7 @@
               <option value="5000000">5M</option>
             </select>
           </label>
-          <label class="row"><span data-i18n>Game length</span>
+          <label class="row"><span class="row-l"><span class="row-ic" data-ic="hourglass"></span><span data-i18n>Game length</span></span>
             <select id="maxRounds">
               <option value="0" data-i18n>until bankruptcy</option>
               <option value="20" data-i18n>20 rounds (quick)</option>
@@ -113,17 +102,19 @@
               <option value="50" data-i18n>50 rounds</option>
             </select>
           </label>
-          <label class="row"><span data-i18n>Global event every</span>
+          <label class="row"><span class="row-l"><span class="row-ic" data-ic="bolt"></span><span><span data-i18n>Game speed</span> <button type="button" class="info-q" data-info="speed" aria-label="What is this?">?</button></span></span>
+            <select id="gameSpeed">
+              <option value="relaxed" data-i18n>Relaxed</option>
+              <option value="normal" data-i18n>Normal</option>
+              <option value="fast" data-i18n>Fast</option>
+            </select>
+          </label>
+          <label class="row"><span class="row-l"><span class="row-ic" data-ic="globe"></span><span data-i18n>Global event every</span></span>
             <select id="globalEvery"></select>
           </label>
-          <label class="row"><input type="checkbox" id="events"> <span data-i18n>Chaos events (random twists every few rounds)</span></label>
-          <label class="row"><input type="checkbox" id="jackpot"> <span data-i18n>Taxi Company jackpot (taxes &amp; fines pile up)</span></label>
-          <label class="row"><input type="checkbox" id="mafia"> <span data-i18n>Borrow from the Mafia (a loan when you are in debt)</span></label>
-          <div id="mafiaSettings" hidden>
-            <label class="row"><span data-i18n>Loan amount</span><select id="mafiaAmount"></select></label>
-            <label class="row"><span data-i18n>Turns to repay</span><select id="mafiaTurns"></select></label>
-            <label class="row"><span data-i18n>Total interest</span><select id="mafiaInterest"></select></label>
-          </div>
+          <label class="row chk"><input type="checkbox" id="events"> <span class="row-ic" data-ic="sparkle"></span><span data-i18n>Chaos events (random twists every few rounds)</span></label>
+          <label class="row chk"><input type="checkbox" id="jackpot"> <span class="row-ic" data-ic="taxi"></span><span data-i18n>Taxi Company jackpot (taxes &amp; fines pile up)</span></label>
+          <label class="row chk"><input type="checkbox" id="mafia"> <span class="row-ic" data-ic="fedora"></span><span data-i18n>Borrow from the Mafia (a loan when you are in debt)</span></label>
           <div id="invite"></div>
           <p id="hostNote" class="muted"></p>
           <div class="row gap">
@@ -140,21 +131,8 @@
     <div id="scene"></div>
     <div id="hudPlayers"></div>
     <div id="eventLog" hidden></div>
-    <div id="turnBanner" hidden></div>
-    <div id="topCenter"><div id="roundChip"></div><div id="eventBanner" hidden></div></div>
+    <div id="topCenter"><div id="eventBanner" hidden></div></div>
     <div id="emoteTray" hidden></div>
-    <div id="hudTools">
-      <button class="tool" id="emoteBtn" data-tipinfo="tool-emote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M9 10h.01M15 10h.01"/></svg></button>
-      <button class="tool" id="followBtn" data-tipinfo="tool-follow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="12" height="10" rx="1"/><path d="M15 11l6-3v8l-6-3"/></svg></button>
-      <button class="tool" id="labelsBtn" data-tipinfo="tool-labels" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-7l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M7 9h10M7 12h6"/></svg></button>
-      <button class="tool" id="annBtn" data-tipinfo="tool-announcer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 12h10"/></svg></button>
-      <button class="tool" id="tvBtn" data-tipinfo="tool-tv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4"/><path d="M6 11h9M6 14h9M6 17h9"/></svg></button>
-      <button class="tool" id="resetViewBtn" data-tipinfo="tool-reset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg></button>
-      <button class="tool" id="musicBtn" data-tipinfo="tool-music"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5"/></svg></button>
-      <button class="tool" id="muteBtn" data-tipinfo="tool-mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16.5 9a4.5 4.5 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11"/><path class="off" d="M17 9l5 6M22 9l-5 6"/></svg></button>
-      <button class="tool" id="drawerBtn" data-tipinfo="tool-drawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></button>
-      <button class="tool" id="quitBtn" data-tipinfo="tool-quit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V3h10v18"/><path d="M3 21h17"/><path d="M13 12h.01"/></svg></button>
-    </div>
     <div id="actionBar">
       <div id="status"></div>
       <div id="actions"></div>
@@ -165,16 +143,18 @@
     <div id="announcer" hidden></div>
     <div id="casinoPopup" hidden>
       <div class="casino-card">
-        <div class="cc-kicker"><i class="cc-icon">🎰</i><span class="cc-where"></span></div>
+        <button class="pop-x" type="button" data-ic="close" aria-label="Close"></button>
+        <div class="cc-kicker"><i class="cc-icon"></i><span class="cc-where"></span></div>
         <div class="cc-title"></div>
         <div class="cc-art" data-art="casino-whim"><span class="cc-sym"></span></div>
         <div class="cc-text"></div>
-        <button class="btn small" data-i18n>OK</button>
+        <button class="btn small cc-ok" data-i18n>OK</button>
       </div>
     </div>
     <div id="globalPopup" hidden>
       <div class="casino-card gl-card">
-        <div class="cc-kicker"><i class="cc-icon">🎡</i><span data-i18n>GLOBAL EVENT</span></div>
+        <button class="pop-x" type="button" data-ic="close" aria-label="Close"></button>
+        <div class="cc-kicker"><i class="cc-icon" data-ic="roulette"></i><span data-i18n>GLOBAL EVENT</span></div>
         <div class="cc-title"></div>
         <div class="cc-art"><span class="cc-sym"></span></div>
         <ul class="gl-rows"></ul>
@@ -194,16 +174,13 @@
       <div id="shareCtl" hidden></div>
       <div id="tradeBanner"></div>
       <div id="feed"></div>
-      <button class="btn small ghost" id="guideBtn2" type="button" data-tipinfo="tool-guide">🂠 <span data-i18n>Cards &amp; events</span></button>
+      <button class="btn small ghost" id="guideBtn2" type="button" data-tipinfo="tool-guide"><span data-ic="book"></span><span data-i18n>Cards &amp; events</span></button>
       <form id="chatForm"><input id="chatInput" maxlength="200" placeholder="Say something…" data-i18n-ph="Say something…" autocomplete="off"><button class="btn small" data-i18n>Send</button></form>
     </aside>
   </section>
 
-  <div id="soundPanel" hidden>
-    <label><span data-i18n>Volume</span> <output id="volOut"></output><input type="range" id="volRange" min="0" max="100" step="1"></label>
-    <label><span data-i18n>Record</span> <output id="musicOut"></output><input type="range" id="musicRange" min="0" max="100" step="1"></label>
-    <div class="sound-row"><button class="btn small ghost" id="muteToggle"></button><button class="btn small ghost" id="musicToggle"></button></div>
-  </div>
+  <div id="settings" hidden></div>
+  <div id="news" hidden></div>
 
   <div id="modal" hidden><div id="modalBox"></div></div>
   <div id="toast" hidden></div>

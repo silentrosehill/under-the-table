@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const { spawn } = require('child_process');
 const { MAPS, buildGame } = require('./maps');
 
@@ -13,9 +14,24 @@ const PORT = process.env.MONOPOLY_DESKTOP ? 0 : Number(process.env.PORT) || 3000
 const ONLINE = process.argv.includes('--online');
 let inviteUrl = null; // public link when --online is used
 const MAX_PLAYERS = 4;
-const TOKENS = ['car', 'hat', 'dog', 'ship', 'dino', 'rocket', 'cat', 'crown'];
+const TOKENS = ['car', 'hat', 'dog', 'glass'];     // the pieces on offer (the client draws them in tokens.js)
+const OLD_TOKENS = { ship: 'car', rocket: 'car', dino: 'dog', cat: 'dog', crown: 'hat' };     // retired pieces: a player who still holds one gets the nearest, or the next free one
+// every player holds one of the current pieces, each different (players carried in from an older game may still hold a retired one)
+function fixTokens(list) {
+  list.forEach((p, i) => {
+    const taken = t => list.some((o, j) => j !== i && o.token === t && (j < i || TOKENS.includes(o.token)));
+    if (TOKENS.includes(p.token) && !taken(p.token)) return;
+    const want = OLD_TOKENS[p.token];
+    p.token = (want && !taken(want) ? want : null) || TOKENS.find(t => !taken(t)) || TOKENS[0];
+  });
+}
 const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#ff6fb5'];
 const GO_SALARY = 200000;
+// Game speed (host setting, lobby only): clients stretch/shrink every animation and hold by this factor; the server paces bots with it.
+const SPEEDS = { relaxed: 1.6, normal: 1, fast: 0.65 };
+const speedMult = () => SPEEDS[g.settings.speed] || SPEEDS.relaxed;
+// Rent of stations (by count owned, doubled in v1.3) and utilities (× dice). Mirrored in public/app.js, hovercard.js, cityScene.js.
+const RAIL_RENT = 50000, UTIL_RENT = [8000, 20000];
 const JAIL_POS = 10;
 const TAXI_POS = 20;
 const JAIL_FINE = 50000;
@@ -25,6 +41,7 @@ const JAIL_FINE = 50000;
 let g = null;
 const GLOBAL_EVERY_DEFAULT = (e => (Number.isInteger(e) && e >= 0 && e <= 10 ? e : 5))(process.env.GLOBAL_EVERY != null && process.env.GLOBAL_EVERY !== '' ? Number(process.env.GLOBAL_EVERY) : NaN); // GLOBAL_EVERY=<n> is a test hook
 
+let gidSeq = Date.now(), logSeq = 0;   // gidSeq: ids for "which game / which board" (clients use them to know what they already hold)
 g = freshGame([]);
 // Long-polling: each browser keeps one /poll request open; we answer it whenever the game changes.
 // (Works through any proxy or tunnel, unlike streaming responses.)
@@ -37,8 +54,9 @@ const OFFLINE_AFTER_MS = 35000;
 function freshGame(players) {
   return {
     phase: 'lobby',
-    settings: g ? g.settings : { map: 'underworld', startMoney: 2000000, jackpot: false, mode: 'ffa', teamTax: 15, teamRent: 'half', events: true, maxRounds: 50, globalEvery: GLOBAL_EVERY_DEFAULT, mafia: false, mafiaAmount: 1000000, mafiaTurns: 5, mafiaInterest: 30 },
-    players: players.map(p => ({ ...p, ...playerDefaults() })),
+    gid: ++gidSeq, boardVer: 0,
+    settings: g ? g.settings : { map: 'underworld', startMoney: 2000000, jackpot: false, mode: 'ffa', teamTax: 15, teamRent: 'half', events: true, maxRounds: 50, globalEvery: GLOBAL_EVERY_DEFAULT, mafia: false, speed: 'relaxed' },
+    players: (list => { fixTokens(list); return list; })(players.map(p => ({ ...p, ...playerDefaults() }))),
     hostId: (players.find(p => !p.bot) || players[0] || {}).id || null,
     board: null,
     meta: null,
@@ -64,6 +82,7 @@ function freshGame(players) {
     events: [],         // gifts, emotes, chaos events — one-off effects for clients
     eventSeq: 0,
     round: 1,
+    turnSeq: 1,         // counts every turn of the game (squatters: the owner may evict after one full turn of theirs)
     event: null,        // the chaos event running this round
     outOrder: [],
     log: [],
@@ -76,7 +95,7 @@ function freshGame(players) {
 
 function playerDefaults() {
   return { money: 0, pos: 0, inJail: false, jailTurns: 0, jailCards: [], bankrupt: false, lastCreditor: null, debtSince: 0, loan: null, loans: 0,
-    hand: [], lastEvict: null, auditUntil: 0, drunk: false, taxi: false,
+    hand: [], lastEvict: null, doneSeq: 0, auditUntil: 0, drunk: false, taxi: false, botErrors: 0,
     stats: { rentEarned: 0, rentPaid: 0, bought: 0, doubles: 0, jail: 0, gifted: 0 } };
 }
 
@@ -180,7 +199,7 @@ function startRound() {
 }
 
 function log(text) {
-  g.log.push({ t: Date.now(), text });
+  g.log.push({ n: ++logSeq, t: Date.now(), text });
   if (g.log.length > 150) g.log.shift();
 }
 
@@ -218,7 +237,7 @@ function buildDecks() {
     cl({ text: `Advance to ${n(24)}.`, fn: p => moveTo(p, 24) }),
     cl({ text: `Advance to ${n(39)}.`, fn: p => moveTo(p, 39) }),
     cl({ text: `Advance to the nearest ${meta().rail}. If owned, pay double rent.`, fn: p => moveTo(p, nearest(p.pos, 'railroad'), { rentMult: 2 }) }),
-    cl({ text: `Advance to the nearest utility. If owned, pay 10× the dice.`, fn: p => moveTo(p, nearest(p.pos, 'utility'), { utilMult: 10000 }) }),
+    cl({ text: `Advance to the nearest utility. If owned, pay ${money(UTIL_RENT[1])} × the dice.`, fn: p => moveTo(p, nearest(p.pos, 'utility'), { utilMult: UTIL_RENT[1] }) }),
     cl({ text: `Get out of ${n(10)} free! Keep this card.`, jail: true }),
     cl({ text: `Go back 3 spaces.`, fn: p => { const from = p.pos; p.pos = (p.pos + 37) % 40; track(p, from, p.pos, 'back'); land(p); } }),
     cl({ text: `Your building loan matures. Collect ${money(150000)}.`, fn: p => gain(p, 150000) }),
@@ -241,6 +260,8 @@ function buildDecks() {
 }
 
 const cardCount = key => { if (g.cardStats) g.cardStats[key] = (g.cardStats[key] || 0) + 1; };
+let uidSeq = 0;
+const uid = () => Date.now() + (++uidSeq % 1000) / 1000; // unique numeric id (Date.now()+Math.random() collided inside one tick)
 const newId = () => crypto.randomBytes(4).toString('hex');
 
 function drawCard(p, deckName, casino) {
@@ -252,7 +273,7 @@ function drawCard(p, deckName, casino) {
   const hc = card.hand ? { id: newId(), key: card.key, type: card.type, deck: deckName } : null;
   if (hc && card.key === 'gang') hc.cost = Math.round((150000 + crypto.randomInt(250001)) / 10000) * 10000;
   const text = hc && hc.cost ? `${card.text} Price: ${money(hc.cost)}.` : card.text;
-  g.lastCard = { id: Date.now() + Math.random(), deck: deckName, title, text, player: p.id, key: card.key, type: card.type };
+  g.lastCard = { id: uid(), deck: deckName, title, text, player: p.id, key: card.key, type: card.type };
   if (name) g.lastCard.name = name;
   if (hc && hc.cost) g.lastCard.cost = hc.cost;
   if (casino) casino.cardId = g.lastCard.id;
@@ -300,7 +321,7 @@ function immediateCard(p, key) {
       label = `Crime wave: ${GROUP_WORD(group)} district`;
       tiles = mine().filter(i => space(i).group === group);
     }
-    const e = { id: Date.now() + Math.random(), kind: 'crime', owner: p.id, mult: 0.6, until: g.round + 3, label };
+    const e = { id: uid(), kind: 'crime', owner: p.id, mult: 0.6, until: g.round + 3, label };
     if (city) e.city = true; else e.group = group;
     g.effects.push(e);
     log(city ? `🚨 A crime wave sweeps the whole city — ${p.name}'s rents drop by 40% for 3 rounds.` : `🚨 A crime wave hits the ${GROUP_WORD(group)} district — ${p.name}'s rents there drop by 40% for 3 rounds.`);
@@ -432,9 +453,9 @@ function baseRent(pos, opts = {}) {
     const base = sp.rent[st.level || 1];
     return hasMonopoly(st.owner, sp.group) ? Math.round(base * 1.5) : base;
   }
-  if (sp.type === 'railroad') return 25000 * 2 ** (ownedCount(st.owner, 'railroad') - 1) * (opts.rentMult || 1);
+  if (sp.type === 'railroad') return RAIL_RENT * 2 ** (ownedCount(st.owner, 'railroad') - 1) * (opts.rentMult || 1);
   if (sp.type === 'utility') {
-    const mult = opts.utilMult || (ownedCount(st.owner, 'utility') === 2 ? 10000 : 4000);
+    const mult = opts.utilMult || (UTIL_RENT[ownedCount(st.owner, 'utility') === 2 ? 1 : 0]);
     return diceTotal * mult;
   }
   return 0;
@@ -522,7 +543,7 @@ function applyOneTooMany(p) {
 }
 
 function addEffect(e) {
-  g.effects.push({ id: Date.now() + Math.random(), until: g.round + 3, ...e });
+  g.effects.push({ id: uid(), until: g.round + 3, ...(e.kind === 'squatters' ? { placedSeq: g.turnSeq } : {}), ...e });
 }
 function dropEffectsAt(pos) {
   g.effects = g.effects.filter(e => e.pos !== Number(pos));
@@ -535,7 +556,7 @@ function spinCasino(p, sp) {
   const mode = force === 'card' || force === 'event' ? force : crypto.randomInt(2) ? 'card' : 'event';
   if (mode === 'card') {
     log(`🎰 ${p.name} tries their luck at ${sp.name}: the dealer deals a card.`);
-    const c = { id: Date.now() + Math.random(), mode: 'card', player: p.id, pos: p.pos, key: 'card', title: 'The dealer deals', text: '', target: {} };
+    const c = { id: uid(), mode: 'card', player: p.id, pos: p.pos, key: 'card', title: 'The dealer deals', text: '', target: {} };
     g.lastCasino = c;
     if (g.casinoStats) g.casinoStats.card = (g.casinoStats.card || 0) + 1;
     drawCard(p, 'chance', c);
@@ -606,7 +627,7 @@ function spinCasino(p, sp) {
     target = { amount: 300000 };
     log(`🎉 Economic Boom: everyone receives ${money(300000)}.`);
   }
-  g.lastCasino = { id: Date.now() + Math.random(), mode: 'event', player: p.id, pos: p.pos, key, title, text, target };
+  g.lastCasino = { id: uid(), mode: 'event', player: p.id, pos: p.pos, key, title, text, target };
   if (g.casinoStats) g.casinoStats[key] = (g.casinoStats[key] || 0) + 1;
 }
 
@@ -695,15 +716,19 @@ function runGlobalWheel() {
   log(`🎡 Global wheel: ${title}!`);
   if (summary) log(summary);
   else for (const r of results) log(`🎡 ${byId(r.player).name}: ${r.text}`);
-  g.lastGlobal = { id: Date.now() + Math.random(), round: g.round, key, title, results };
+  g.lastGlobal = { id: uid(), round: g.round, key, title, results };
   if (g.globalStats) g.globalStats[key] = (g.globalStats[key] || 0) + 1;
-  botWaitUntil = Math.max(botWaitUntil, Date.now() + 15000); // let clients play the wheel + summary first
+  botWaitUntil = Math.max(botWaitUntil, Date.now() + 15000 * speedMult()); // let clients play the wheel + summary first
 }
 
 function evictCost(pos) {
   const sp = space(pos), st = g.props[pos];
-  return Math.max(10000, Math.round(0.25 * (sp.price + (st.level - 1) * (sp.houseCost || 0)) / 10000) * 10000);
+  return Math.max(10000, Math.round(0.5 * (sp.price + (st.level - 1) * (sp.houseCost || 0)) / 10000) * 10000);
 }
+
+// The owner may evict only after one FULL turn of theirs has passed since the squatters arrived
+// (not the arrival turn, and not their very next turn start either): their last finished turn must be newer than the arrival turn.
+const canEvict = (e, owner) => owner.doneSeq > (e.placedSeq || 0);
 
 function buyoutCost(pos) {
   const sp = space(pos), st = g.props[pos];
@@ -726,6 +751,8 @@ function nextTurn() {
     if (!g.players[i].bankrupt) { g.turn = i; break; }
   }
   g.turnState = 'roll';
+  if (g.players[prev]) g.players[prev].doneSeq = g.turnSeq; // their turn is over: a full turn has passed (squatters)
+  g.turnSeq++;
   const blessed = g.effects.filter(e => e.untilTurnOf === cur().id);
   if (blessed.length) {
     g.effects = g.effects.filter(e => e.untilTurnOf !== cur().id);
@@ -747,8 +774,12 @@ const mafiaStat = k => { if (g.mafiaStats) g.mafiaStats[k] = (g.mafiaStats[k] ||
 // A player in debt may borrow once the loan covers the debt: at most 2 loans per game, one at a time.
 function mafiaOffer(p) {
   const s = g.settings;
-  return !!(s.mafia && g.phase === 'playing' && !p.bankrupt && p.money < 0 && !p.loan && (p.loans || 0) < 2 && s.mafiaAmount + p.money >= 0);
+  return !!(s.mafia && g.phase === 'playing' && !p.bankrupt && p.money < 0 && !p.loan && (p.loans || 0) < 2 && MAFIA_MAX + p.money >= 0);
 }
+// The player picks the terms. rate = 10% + 4% per turn + 2% per $250K; mirrored in public/app.js and info.js.
+const MAFIA_MIN = 200000, MAFIA_MAX = 3000000, MAFIA_STEP = 50000;
+const mafiaDueFor = (amount, turns) => Math.round(amount * (1 + 0.10 + 0.04 * turns + 0.02 * (amount / 250000)) / 10000) * 10000;
+const mafiaMinFor = p => Math.max(MAFIA_MIN, Math.ceil(-p.money / MAFIA_STEP) * MAFIA_STEP);
 
 // Start of the borrower's own turn: count down, warn at 2, collect at 0.
 function mafiaTick(p) {
@@ -805,10 +836,16 @@ function goBankrupt(p) {
     log(`${p.name} went bankrupt! Their properties return to the bank.`);
   }
   p.jailCards = [];
+  for (const c of p.hand) g.decks[c.deck].push(handTemplate(c.key)); // unplayed hand cards go back into their decks
+  p.hand = [];
+  g.effects = g.effects.filter(e => e.owner !== p.id); // gang / crime effects bound to the bankrupt owner
   p.money = 0;
   p.loan = null;
+  p.drunk = false;
+  p.taxi = false;
   p.bankrupt = true;
   g.outOrder.push(p.id);
+  if (g.protection) pruneProtection();
   if (g.trade && (g.trade.from === p.id || g.trade.to === p.id)) g.trade = null;
 
   const alive = alivePlayers();
@@ -822,6 +859,29 @@ function goBankrupt(p) {
     return;
   }
   if (cur() === p) nextTurn();
+  else fixPending();
+}
+
+// A pending choice can lose its options while it waits (a rival is kicked, a traded tile changes hands): drop it instead of stalling the turn.
+function fixPending() {
+  const pd = g.pending;
+  if (!pd || g.phase !== 'playing') return;
+  const c = cur();
+  if (pd.kind === 'bribe') pd.options = pd.options.filter(id => { const o = byId(id); return o && !o.bankrupt && !o.inJail; });
+  else if (pd.kind === 'gift') pd.options = pd.options.filter(i => g.props[i] && g.props[i].owner === c.id && !g.props[i].mortgaged);
+  else if (pd.kind === 'upgrade') {
+    const st = g.props[pd.pos];
+    if (!st || st.owner !== c.id || st.mortgaged || st.level >= 5) { g.pending = null; afterMove(); }
+    return;
+  } else if (pd.kind === 'buyout') {
+    const st = g.props[pd.pos];
+    if (!st || st.owner === c.id || st.level >= 5) { g.pending = null; afterMove(); } else pd.cost = buyoutCost(pd.pos);
+    return;
+  } else return;
+  if (pd.options.length) return;
+  g.pending = null;
+  log(`${c.name} has nothing left to choose — the card fizzles.`);
+  afterMove();
 }
 
 function endByWorth(early = false) {
@@ -906,10 +966,7 @@ const actions = {
     if (s.globalEvery != null && Number.isFinite(Number(s.globalEvery))) g.settings.globalEvery = Math.max(0, Math.min(10, Math.round(Number(s.globalEvery))));
     if (s.maxRounds != null && [0, 20, 30, 50].includes(Number(s.maxRounds))) g.settings.maxRounds = Number(s.maxRounds);
     if (typeof s.mafia === 'boolean') g.settings.mafia = s.mafia;
-    const num = (v, lo, hi, step) => Math.max(lo, Math.min(hi, Math.round((Number(v) || lo) / step) * step));
-    if (s.mafiaAmount != null) g.settings.mafiaAmount = num(s.mafiaAmount, 500000, 3000000, 250000);
-    if (s.mafiaTurns != null) g.settings.mafiaTurns = num(s.mafiaTurns, 3, 10, 1);
-    if (s.mafiaInterest != null) g.settings.mafiaInterest = num(s.mafiaInterest, 10, 100, 10);
+    if (SPEEDS[s.speed]) g.settings.speed = s.speed;
   },
   addBot(p) {
     if (p.id !== g.hostId) throw new Error('Only the host can add bots.');
@@ -956,7 +1013,7 @@ const actions = {
     g.turn = crypto.randomInt(g.players.length);
     g.turnState = 'roll';
     g.phase = 'playing';
-    Object.assign(g, { round: 1, effects: [], protection: {}, lastCasino: null, lastGlobal: null, event: null, events: [], eventSeq: 0, outOrder: [], winner: null, winnerTeam: null, moves: [], moveSeq: 0, teamShare: [0, 0], splitCount: 0 });
+    Object.assign(g, { gid: ++gidSeq, boardVer: ++gidSeq, round: 1, turnSeq: 1, effects: [], protection: {}, lastCasino: null, lastGlobal: null, event: null, events: [], eventSeq: 0, outOrder: [], winner: null, winnerTeam: null, moves: [], moveSeq: 0, teamShare: [0, 0], splitCount: 0 });
     log(`Game started on ${meta().title}! ${cur().name} goes first.`);
     if (process.env.MAFIA_TEST) mafiaTestSetup(); // test hook, harmless when unset
   },
@@ -1147,7 +1204,9 @@ const actions = {
     pos = Number(pos);
     const st = g.props[pos];
     if (!st || st.owner !== p.id) throw new Error("You don't own that.");
-    if (!g.effects.some(e => e.kind === 'squatters' && e.pos === pos && g.round < e.until)) throw new Error('No squatters there.');
+    const sq = g.effects.find(e => e.kind === 'squatters' && e.pos === pos && g.round < e.until);
+    if (!sq) throw new Error('No squatters there.');
+    if (!canEvict(sq, p)) throw new Error('Squatters can be evicted from next turn.');
     const cost = evictCost(pos);
     if (p.money < cost) throw new Error(`You need ${money(cost)}.`);
     charge(p, cost);
@@ -1214,13 +1273,16 @@ const actions = {
     if (g.phase !== 'playing' || p.bankrupt) throw new Error('Not possible.');
     goBankrupt(p);
   },
-  borrowMafia(p) {
+  borrowMafia(p, { amount, turns } = {}) {
     if (!mafiaOffer(p)) throw new Error('The Mafia will not lend you money right now.');
-    const s = g.settings, amount = s.mafiaAmount, due = Math.round(amount * (1 + s.mafiaInterest / 100));
+    amount = Number(amount); turns = Number(turns);
+    if (!Number.isInteger(amount) || amount % MAFIA_STEP || amount < mafiaMinFor(p) || amount > MAFIA_MAX) throw new Error('The Mafia will not lend that amount.');
+    if (!Number.isInteger(turns) || turns < 3 || turns > 10) throw new Error('Pick 3 to 10 turns.');
+    const due = mafiaDueFor(amount, turns);
     p.money += amount;
-    p.loan = { amount, due, turnsLeft: s.mafiaTurns, loans: ++p.loans };
+    p.loan = { amount, due, turnsLeft: turns, loans: ++p.loans };
     mafiaStat('loans');
-    log(`🎩 ${p.name} borrowed ${money(amount)} from the Mafia — ${money(due)} due in ${s.mafiaTurns} turns.`);
+    log(`🎩 ${p.name} borrowed ${money(amount)} from the Mafia — ${money(due)} due in ${turns} turns.`);
   },
   repayMafia(p, { amount } = {}) {
     requireTurn(p);
@@ -1293,6 +1355,7 @@ const actions = {
     from.money += t.getMoney - t.giveMoney;
     p.money += t.giveMoney - t.getMoney;
     log(`${p.name} accepted ${from.name}'s trade.`);
+    fixPending();
   },
   tradeCancel(p) {
     if (!g.trade || g.trade.from !== p.id) throw new Error('No trade to cancel.');
@@ -1337,7 +1400,7 @@ const actions = {
   },
   chat(p, { text }) {
     text = String(text || '').trim().slice(0, 200);
-    if (text) { g.log.push({ t: Date.now(), chat: true, from: p.id, text }); if (g.log.length > 150) g.log.shift(); }
+    if (text) { g.log.push({ n: ++logSeq, t: Date.now(), chat: true, from: p.id, text }); if (g.log.length > 150) g.log.shift(); }
   },
   kick(p, { playerId }) {
     if (p.id !== g.hostId) throw new Error('Only the host can remove players.');
@@ -1360,8 +1423,10 @@ const actions = {
     endByWorth(true);
   },
   newGame(p) {
-    if (p.id !== g.hostId) throw new Error('Only the host can do that.');
-    const host = g.hostId;
+    // the host starts the next game; if the host has left (offline once the game is over), any other human may take over
+    const hostGone = g.phase === 'over' && g.players.every(o => o.id !== g.hostId || (!o.bot && !isOnline(o.secret)));
+    if (p.id !== g.hostId && !(hostGone && !p.bot)) throw new Error('Only the host can do that.');
+    const host = p.id;
     const players = g.players.map(({ id, secret, name, token, color, team, bot }) => ({ id, secret, name, token, color, team, bot }));
     g = freshGame(players);
     g.hostId = host;
@@ -1377,12 +1442,12 @@ function pruneProtection() {
 }
 for (const k of Object.keys(actions)) {
   const fn = actions[k];
-  actions[k] = function (...a) { try { return fn.apply(this, a); } finally { if (g.protection) pruneProtection(); } };
+  actions[k] = function (...a) { try { return fn.apply(this, a); } finally { if (g.protection) pruneProtection(); if (g.pending) fixPending(); } };
 }
 
 // MAFIA_TEST=1: the first human starts $100K in debt (holding two tiles) and loans are short.
 function mafiaTestSetup() {
-  Object.assign(g.settings, { mafia: true, mafiaTurns: 3 });
+  Object.assign(g.settings, { mafia: true });
   const h = g.players.find(o => !o.bot);
   if (!h) return;
   h.money = -100000;
@@ -1418,7 +1483,7 @@ function botRaise(b) {
   if (built) return ['sell', { pos: built.sp.i }];
   const mortgageable = mine.filter(x => !x.st.mortgaged).sort((x, y) => x.sp.price - y.sp.price)[0];
   if (mortgageable) return ['mortgage', { pos: mortgageable.sp.i }];
-  if (mafiaOffer(b)) return ['borrowMafia', {}];
+  if (mafiaOffer(b)) return ['borrowMafia', { amount: Math.min(MAFIA_MAX, Math.max(MAFIA_MIN, Math.ceil((-b.money + 300000) / MAFIA_STEP) * MAFIA_STEP)), turns: 5 }];
   // last resort: give a human teammate a chance to bail us out
   const mate = mateOf(b);
   if (mate && !mate.bot && mate.money > 0) {
@@ -1502,7 +1567,8 @@ function botCardPlay(b) {
   const hasFx = (kind, pos) => g.effects.some(e => e.kind === kind && e.pos === pos && g.round < e.until);
   const best = (list, score) => list.map(i => [i, score(i)]).sort((x, y) => y[1] - x[1])[0];
   for (const i of ownedBy(b).map(x => x.sp.i)) {
-    if (!hasFx('squatters', i)) continue;
+    const sq = g.effects.find(e => e.kind === 'squatters' && e.pos === i && g.round < e.until);
+    if (!sq || !canEvict(sq, b)) continue;
     const cost = evictCost(i);
     if (b.money >= cost && (baseRent(i) >= 2 * cost || b.money >= 1500000)) return ['evict', { pos: i }];
   }
@@ -1597,19 +1663,20 @@ function animMs(seq) {
     const fwd = (m.to - m.from + 40) % 40;
     ms += m.how === 'card' ? 1900 : m.how === 'jail' ? 1200 : m.how === 'back' ? 800 : fwd > 12 ? 1200 : fwd * 250;
   }
-  return ms + 700;
+  return (ms + 700) * speedMult();
 }
 
 function scheduleBots(delay = 1000) {
   if (botTimer || g.phase !== 'playing' || !g.players.some(p => p.bot && !p.bankrupt)) return;
-  botTimer = setTimeout(botTick, BOT_FAST ? 2 : Math.max(delay, botWaitUntil - Date.now()));
+  botTimer = setTimeout(botTick, BOT_FAST ? 2 : Math.max(delay * speedMult(), botWaitUntil - Date.now()));
 }
 
 function botTick() {
   botTimer = null;
   if (g.phase !== 'playing') return;
   for (const b of g.players.filter(p => p.bot && !p.bankrupt)) {
-    const want = botWants(b);
+    let want = null;
+    try { want = botWants(b); } catch (e) { console.log(`  (bot ${b.name} could not decide: ${e.stack || e.message})`); if (++b.botErrors > 4) { b.lastCreditor = null; goBankrupt(b); broadcast(); scheduleBots(1100); return; } }
     if (!want) continue;
     if (want[0] === 'wait') { if (BOT_FAST) b.debtSince -= 30000; scheduleBots(2500); return; }
     const seq = g.moveSeq;
@@ -1628,33 +1695,93 @@ function botTick() {
 }
 
 // ---------------------------------------------------------------- network
+//
+// Protocol (long-poll):  GET /poll?v=<version>[&g=<gameId>&l=<lastLogN>&m=<moveSeq>&e=<eventSeq>&sv=<staticVer>&bv=<boardVer>]
+// - Without the optional parameters (old clients) every answer is the complete state.
+// - With them, the server leaves out what the client already holds: static lists (maps, tokens, colors, …) when sv matches,
+//   the board/meta when bv matches, and sends only the NEW log lines / moves / events (state.dl = 1) when g matches.
+//   The client merges these back into a full state object (see connect() in public/app.js).
+// - JSON is gzip-compressed when the client accepts it, and the part that is the same for every viewer is built once per version.
 
-function publicState(forSecret) {
-  const me = bySecret(forSecret);
+const STATIC_VER = String(Date.now());
+const FULL_LOG = 80; // log lines sent to a client that has none yet (the server keeps 150)
+
+// Everything that is identical for every viewer, as the inside of a JSON object. Built at most once per version.
+let sharedCache = null;
+function sharedBody() {
+  if (sharedCache && sharedCache.v === version) return sharedCache;
   const connected = onlineSecrets();
-  return {
-    you: me ? me.id : null,
+  const state = {
     inviteUrl,
     phase: g.phase,
-    settings: g.settings,
-    maps: Object.fromEntries(Object.entries(MAPS).map(([k, m]) => [k, { title: m.title, currency: m.currency, theme: m.theme }])),
-    tokens: TOKENS, colors: COLORS, maxPlayers: MAX_PLAYERS,
+    settings: { ...g.settings, speedMult: speedMult() },
     hostId: g.hostId,
+    gid: g.gid, bv: g.boardVer,
     players: g.players.map(p => {
-      const { secret, lastCreditor, jailCards, lastEmote, debtSince, botErrors, hand, cardRound, ...rest } = p;
+      const { secret, lastCreditor, jailCards, lastEmote, debtSince, botErrors, hand, cardRound, lastProposal, shareMark, ...rest } = p;
       return { ...rest, jailCards: jailCards.length, handCount: hand.length, connected: !!p.bot || connected.has(secret), worth: g.board ? netWorth(p) : p.money };
     }),
-    teams: TEAMS, emotes: EMOTES,
-    board: g.board, meta: g.meta, props: g.props,
+    props: g.props,
+    turn: g.turn, turnState: g.turnState, extraRoll: !!g.extraRoll, dice: g.dice, rollId: g.rollId,
+    pending: g.pending, jackpot: g.jackpot, lastCard: g.lastCard, lastCasino: g.lastCasino, lastGlobal: g.lastGlobal,
+    effects: g.effects.map(e => (e.kind === 'squatters' ? { ...e, canEvict: !!(byId(g.props[e.pos] && g.props[e.pos].owner) && canEvict(e, byId(g.props[e.pos].owner))) } : e)),
+    trade: g.trade, winner: g.winner, winnerTeam: g.winnerTeam, outOrder: g.outOrder,
+    round: g.round, event: g.event, eventSeq: g.eventSeq,
+    moveSeq: g.moveSeq, teamShare: g.teamShare,
+  };
+  const s = JSON.stringify(state);
+  sharedCache = { v: version, body: s.slice(1, -1), parts: new Map(), gz: new Map() };
+  return sharedCache;
+}
+
+// Static lists never change while the server runs.
+const STATIC_JSON = (() => {
+  const s = JSON.stringify({
+    maps: Object.fromEntries(Object.entries(MAPS).map(([k, m]) => [k, { title: m.title, currency: m.currency, theme: m.theme }])),
+    tokens: TOKENS, colors: COLORS, maxPlayers: MAX_PLAYERS, teams: TEAMS, emotes: EMOTES,
+  });
+  return s.slice(1, -1);
+})();
+
+// q: the client's optional sync parameters (all strings or undefined). Returns the JSON text of the state for that viewer.
+function stateJson(forSecret, q = {}) {
+  const me = bySecret(forSecret);
+  const sh = sharedBody();
+  const head = {
+    you: me ? me.id : null,
     // private, per viewer: your hand and your secretly protected tiles
     mine: me ? { hand: me.hand.map(({ id, key, type, cost }) => (cost ? { id, key, type, cost } : { id, key, type })), protected: Object.keys(g.protection || {}).filter(k => g.protection[k] === me.id).map(Number) } : null,
-    turn: g.turn, turnState: g.turnState, extraRoll: !!g.extraRoll, dice: g.dice, rollId: g.rollId,
-    pending: g.pending, jackpot: g.jackpot, lastCard: g.lastCard, lastCasino: g.lastCasino, lastGlobal: g.lastGlobal, effects: g.effects,
-    trade: g.trade, log: g.log, winner: g.winner, winnerTeam: g.winnerTeam, outOrder: g.outOrder,
-    round: g.round, event: g.event, events: g.events, eventSeq: g.eventSeq,
-    moves: g.moves, moveSeq: g.moveSeq, teamShare: g.teamShare,
   };
+  const delta = q.g != null && q.g === String(g.gid);
+  const parts = {};
+  const wantBoard = q.bv !== String(g.boardVer);
+  if (wantBoard) { parts.board = g.board; parts.meta = g.meta; }
+  if (delta) {
+    parts.dl = 1;
+    const l = Number(q.l) || 0, m = Number(q.m) || 0, e = Number(q.e) || 0;
+    parts.log = g.log.filter(x => x.n > l);
+    parts.moves = g.moves.filter(x => x.seq > m);
+    parts.events = g.events.filter(x => x.seq > e);
+  } else {
+    parts.log = g.log.slice(-FULL_LOG);
+    parts.moves = g.moves;
+    parts.events = g.events;
+  }
+  const key = (wantBoard ? 'B' : '-') + (q.sv === STATIC_VER ? '-' : 'S') + (delta ? 'd' : 'f') + parts.log.length + ':' + (parts.log.length ? parts.log[parts.log.length - 1].n : 0) + ':' + parts.moves.length + ':' + parts.events.length;
+  let ext = sh.parts.get(key);
+  if (ext === undefined) {
+    const o = { log: parts.log, moves: parts.moves, events: parts.events };
+    if (parts.dl) o.dl = 1;
+    if (wantBoard) { o.board = parts.board; o.meta = parts.meta; }
+    let s = JSON.stringify(o).slice(1, -1);
+    if (q.sv !== STATIC_VER) s += ',' + STATIC_JSON + ',"sv":"' + STATIC_VER + '"';
+    sh.parts.set(key, ext = s);
+  }
+  return '{' + JSON.stringify(head).slice(1, -1) + ',' + sh.body + ',' + ext + '}';
 }
+
+// Full state object (kept for tools/tests): same content as the old publicState().
+function publicState(forSecret) { return JSON.parse(stateJson(forSecret)); }
 
 function onlineSecrets() {
   const now = Date.now();
@@ -1662,32 +1789,62 @@ function onlineSecrets() {
   for (const [sec, t] of lastSeen) if (now - t < OFFLINE_AFTER_MS) set.add(sec);
   return set;
 }
+function isOnline(sec) {
+  if (!sec) return true;
+  for (const w of waiters) if (w.secret === sec) return true;
+  const t = lastSeen.get(sec);
+  return t != null && Date.now() - t < OFFLINE_AFTER_MS;
+}
+// Only real players are tracked (anything else, e.g. spectators or junk tokens, shares the '' slot) so the map cannot grow without bound.
+function seen(sec) { lastSeen.set(bySecret(sec) ? sec : '', Date.now()); }
 
 function answer(w) {
   clearTimeout(w.timer);
   waiters.delete(w);
-  lastSeen.set(w.secret, Date.now());
-  w.res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  w.res.end(JSON.stringify({ v: version, state: publicState(w.secret) }));
+  const res = w.res;
+  if (res.destroyed || res.writableEnded) return;
+  seen(w.secret);
+  const text = `{"v":${version},"state":${stateJson(w.secret, w.q)}}`;
+  const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Accept-Encoding' };
+  if (w.gzip && text.length > 600) {
+    // viewers with identical needs (e.g. spectators) share one compressed copy per version
+    const sh = sharedBody();
+    const k = (w.secret || '') + '|' + JSON.stringify(w.q);
+    let buf = sh.gz.get(k);
+    if (!buf) sh.gz.set(k, buf = zlib.gzipSync(text, { level: 4 }));
+    headers['Content-Encoding'] = 'gzip';
+    res.writeHead(200, headers);
+    return res.end(buf);
+  }
+  res.writeHead(200, headers);
+  res.end(text);
 }
 
+// Several changes in one tick (an action plus the bot reacting) are answered with a single update.
+let flushScheduled = false;
 function broadcast() {
   version++;
-  for (const w of [...waiters]) answer(w);
+  if (flushScheduled) return;
+  flushScheduled = true;
+  setImmediate(() => { flushScheduled = false; for (const w of [...waiters]) answer(w); });
 }
 
 // Refresh everyone when a player goes offline/online.
 let lastOnlineKey = '';
 const onlineTimer = setInterval(() => {
-  const key = g.players.map(p => onlineSecrets().has(p.secret) ? 1 : 0).join('');
+  const key = g.players.map(p => isOnline(p.secret) ? 1 : 0).join('');
   if (key !== lastOnlineKey) { lastOnlineKey = key; broadcast(); }
+  const now = Date.now();
+  for (const [sec, t] of lastSeen) if (now - t > 10 * 60 * 1000 || (sec && !bySecret(sec))) lastSeen.delete(sec);
 }, 5000);
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', c => { data += c; if (data.length > 1e5) req.destroy(); });
-    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); } });
+    let data = '', big = false;
+    req.on('data', c => { if (big) return; data += c; if (data.length > 1e5) { big = true; data = ''; reject(new Error('Too large.')); req.destroy(); } });
+    req.on('error', reject);
+    req.on('close', () => reject(new Error('Closed.')));   // no-op once resolved
+    req.on('end', () => { try { const o = data ? JSON.parse(data) : {}; resolve(o && typeof o === 'object' && !Array.isArray(o) ? o : {}); } catch (e) { reject(e); } });
   });
 }
 
@@ -1696,10 +1853,84 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf' };
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.cjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json',
+  '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
+  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
+};
+const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.cjs', '.css', '.json', '.svg', '.txt', '.md', '.wasm', '.gltf']);
 const PUBLIC = path.join(__dirname, 'public');
+// compressed copies of static text files, keyed by file + mtime (so an edited file is recompressed on its next request)
+const zipCache = new Map(); let zipBytes = 0;
+function zipped(file, st, kind, data, cb) {
+  const key = kind + '|' + file + '|' + st.mtimeMs + '|' + st.size;
+  const hit = zipCache.get(key);
+  if (hit) return cb(hit);
+  const done = (err, buf) => {
+    if (err) return cb(null);
+    zipBytes += buf.length;
+    zipCache.set(key, buf);
+    for (const [k, v] of zipCache) { if (zipBytes <= 64 << 20) break; zipCache.delete(k); zipBytes -= v.length; }   // keep the cache bounded
+    cb(buf);
+  };
+  if (kind === 'br') zlib.brotliCompress(data, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: data.length } }, done);
+  else zlib.gzip(data, { level: 6 }, done);
+}
+
+function serveStatic(req, res, url) {
+  let pathname;
+  try { pathname = decodeURIComponent(url.pathname); } catch { res.writeHead(400); return res.end(); }
+  const file = path.resolve(PUBLIC, '.' + (pathname === '/' ? '/index.html' : pathname));
+  const relative = path.relative(PUBLIC, file);
+  if (relative.startsWith('..') || path.isAbsolute(relative) || relative.split(path.sep).some(part => part.startsWith('.'))) { res.writeHead(403); return res.end(); }
+  if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) { res.writeHead(404); return res.end('Not found'); }
+    const ext = path.extname(file);
+    // Our own code and pages are re-validated on every load (ETag -> a cheap 304 when unchanged), so an update reaches players on a plain reload.
+    // Third-party libraries and big assets (models, textures, fonts) may be cached for an hour.
+    const code = ['.html', '.js', '.mjs', '.css', '.json'].includes(ext) && !relative.startsWith('vendor' + path.sep);
+    const etag = `"${st.size.toString(36)}-${Math.round(st.mtimeMs).toString(36)}"`;
+    const base = { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': code ? 'no-cache' : 'public, max-age=3600', ETag: etag, 'Last-Modified': st.mtime.toUTCString(), Vary: 'Accept-Encoding' };
+    const inm = req.headers['if-none-match'];
+    if (inm && inm.split(',').some(x => x.trim().replace(/^W\//, '') === etag)) { res.writeHead(304, base); return res.end(); }
+    const ae = String(req.headers['accept-encoding'] || '');
+    const kind = COMPRESSIBLE.has(ext) && st.size > 1024 ? (/\bbr\b/.test(ae) ? 'br' : /\bgzip\b/.test(ae) ? 'gzip' : null) : null;
+    const send = (buf, enc) => {
+      const h = { ...base, 'Content-Length': buf.length };
+      if (enc) h['Content-Encoding'] = enc;
+      res.writeHead(200, h);
+      res.end(req.method === 'HEAD' ? undefined : buf);
+    };
+    if (!kind) {
+      if (st.size > 4 << 20 && req.method === 'GET') {   // big binaries: stream instead of loading into memory
+        res.writeHead(200, { ...base, 'Content-Length': st.size });
+        const rs = fs.createReadStream(file);
+        rs.on('error', () => res.destroy());
+        res.on('close', () => rs.destroy());
+        return rs.pipe(res);
+      }
+      return fs.readFile(file, (e, data) => { if (e) { res.writeHead(404); return res.end('Not found'); } send(data, null); });
+    }
+    fs.readFile(file, (e, data) => {
+      if (e) { res.writeHead(404); return res.end('Not found'); }
+      zipped(file, st, kind, data, buf => (buf ? send(buf, kind === 'br' ? 'br' : 'gzip') : send(data, null)));
+    });
+  });
+}
 
 const server = http.createServer(async (req, res) => {
+  try { await handle(req, res); }
+  catch (e) { // never let a bad request take the game down
+    console.log('  (request error:', e && e.message, ')');
+    if (!res.headersSent) { try { res.writeHead(500, { 'Content-Type': 'application/json' }); } catch {} }
+    try { res.end('{"error":"Server error."}'); } catch {}
+  }
+});
+server.headersTimeout = 20000;
+
+async function handle(req, res) {
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   const url = new URL(req.url, 'http://x');
@@ -1707,13 +1938,16 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/poll') {
     // Legacy clients may still send s; updated clients keep tokens out of URLs.
     const sec = (req.headers.authorization || '').replace(/^Bearer /, '') || url.searchParams.get('s') || '';
-    const w = { res, secret: sec };
-    const wasOnline = !sec || onlineSecrets().has(sec);
-    lastSeen.set(sec, Date.now());
-    if (Number(url.searchParams.get('v')) !== version) return answer(w);
+    const sp = url.searchParams;
+    const q = {};
+    for (const k of ['g', 'l', 'm', 'e', 'sv', 'bv']) if (sp.has(k)) q[k] = sp.get(k);
+    const w = { res, secret: sec.slice(0, 80), q, gzip: /\bgzip\b/.test(String(req.headers['accept-encoding'] || '')) };
+    const wasOnline = isOnline(w.secret);
+    seen(w.secret);
+    if (Number(sp.get('v')) !== version) return answer(w);
     waiters.add(w);
     w.timer = setTimeout(() => answer(w), POLL_HOLD_MS);
-    req.on('close', () => { clearTimeout(w.timer); waiters.delete(w); });
+    res.on('close', () => { clearTimeout(w.timer); waiters.delete(w); });
     if (!wasOnline) broadcast();
     return;
   }
@@ -1744,7 +1978,7 @@ const server = http.createServer(async (req, res) => {
     try { body = await readBody(req); } catch { return json(res, 400, { error: 'Bad request.' }); }
     const p = bySecret(body.secret);
     if (!p) return json(res, 403, { error: 'Unknown player — please rejoin.' });
-    const fn = actions[body.type];
+    const fn = Object.prototype.hasOwnProperty.call(actions, body.type) ? actions[body.type] : null;
     if (!fn) return json(res, 400, { error: 'Unknown action.' });
     try {
       fn(p, body);
@@ -1752,25 +1986,17 @@ const server = http.createServer(async (req, res) => {
       scheduleBots();
       return json(res, 200, { ok: true });
     } catch (e) {
-      return json(res, 400, { error: e.message });
+      if (!(e instanceof Error) || e.constructor !== Error) { console.log(`  (action ${body.type} crashed: ${e && e.stack || e})`); broadcast(); } // a crash may have left a half-applied action behind; plain rule errors change nothing
+      return json(res, 400, { error: e instanceof Error && e.constructor === Error ? e.message : 'Something went wrong.' });
     }
   }
 
-  // static files
-  let pathname;
-  try { pathname = decodeURIComponent(url.pathname); } catch { res.writeHead(400); return res.end(); }
-  const file = path.resolve(PUBLIC, '.' + (pathname === '/' ? '/index.html' : pathname));
-  const relative = path.relative(PUBLIC, file);
-  if (relative.startsWith('..') || path.isAbsolute(relative) || relative.split(path.sep).some(part => part.startsWith('.'))) { res.writeHead(403); return res.end(); }
-  fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404); return res.end('Not found'); }
-    // code and pages are always re-checked so an update reaches players on a plain reload; big assets may cache
-    const code = ['.html', '.js', '.mjs', '.css', '.json'].includes(path.extname(file));
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': code ? 'no-cache' : 'public, max-age=3600' });
-    res.end(data);
-  });
-});
+  serveStatic(req, res, url);
+}
 
+
+// A bug in one request or timer must never end a running game for everybody.
+if (!process.env.SIM) process.on('uncaughtException', e => console.log('  (uncaught error:', e && e.stack || e, ')'));
 
 server.on('error', err => {
   if (err.code !== 'EADDRINUSE') throw err;
@@ -1782,7 +2008,7 @@ server.on('error', err => {
 // SIM=1: headless balance simulation (tools/sim.mjs) — no listening, just export the internals.
 if (process.env.SIM) {
   module.exports = {
-    actions, botWants, goBankrupt, nextTurn, netWorth, mafiaTick,
+    actions, botWants, goBankrupt, nextTurn, netWorth, mafiaTick, baseRent, canEvict, evictCost, speedMult, SPEEDS, RAIL_RENT, UTIL_RENT,
     get g() { return g; },
     newGame(nBots, settings) { // an all-bot lobby, started
       const host = { id: 'h0', secret: 'bot-h0', name: 'Host Bot', token: TOKENS[0], color: COLORS[0], team: 0, bot: true };
@@ -1798,7 +2024,7 @@ if (process.env.SIM) {
 } else server.listen(PORT, '0.0.0.0', () => {
   const listeningPort = server.address().port;
   if (process.parentPort) process.parentPort.postMessage({ type: 'ready', port: listeningPort });
-  console.log('\n🎲  Monopoly Party is running!\n');
+  console.log('\n🎲  Under The Table is running!\n');
   console.log(`   On this computer:   http://localhost:${listeningPort}`);
   for (const ifs of Object.values(os.networkInterfaces())) {
     for (const i of ifs || []) {

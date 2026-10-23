@@ -270,6 +270,7 @@ export function createRoom(scene, renderer, { tableY }) {
 
   return {
     group, update, bulbWorld, envReady,
+    setDetail(tier) { const n = tier === 'low' ? 450 : N; if (dustGeo.drawRange.count !== n) dustGeo.setDrawRange(0, n); },   // fewer motes on Low
     setShadowSize(size) {
       if (spot.shadow.mapSize.x === size) return;
       spot.shadow.mapSize.set(size, size);
