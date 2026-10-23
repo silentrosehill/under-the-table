@@ -78,7 +78,7 @@ input[type=text], #nameInput, #chatInput, .modal-input {
 .pick { width: 46px; height: 46px; border-radius: 12px; border: 2px solid var(--panel-line); background: var(--cell); font-size: calc(var(--ui-scale, 1) * 24px); cursor: pointer; display: grid; place-items: center; }
 .pick.sel { outline: 3px solid var(--accent); outline-offset: 1px; }
 .pick.taken { opacity: .25; cursor: not-allowed; }
-.pick.swatch { width: 36px; height: 36px; border-radius: 50%; }
+.pick.swatch { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--pt, transparent); }
 .map-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .map-opt { padding: 12px; border-radius: var(--radius); border: 2px solid var(--panel-line); background: var(--cell); color: var(--text); cursor: pointer; text-align: left; }
 .map-opt b { display: block; font-size: calc(var(--ui-scale, 1) * 15px); }
@@ -310,7 +310,7 @@ body.in-game #topCenter { top: 92px; bottom: auto; left: auto; right: 12px; tran
 }
 
 /* tokens shown in the interface: the player's enamel colour around a monochrome figure */
-[data-theme="noir"] .token-badge { width: 30px; height: 30px; background: #16110d; border: 2px solid var(--pc); box-shadow: 0 1px 4px rgba(0, 0, 0, .6); font-size: calc(var(--ui-scale, 1) * 16px); }
+[data-theme="noir"] .token-badge { width: 30px; height: 30px; background: #16110d; border: 2px solid var(--pt, var(--pc)); box-shadow: 0 1px 4px rgba(0, 0, 0, .6); font-size: calc(var(--ui-scale, 1) * 16px); }
 [data-theme="noir"] .token-badge i, [data-theme="noir"] .pick:not(.swatch) { font-style: normal; filter: grayscale(1) sepia(.3) brightness(1.15) contrast(1.05); }
 
 /* tools, round counter, action bar */
@@ -532,7 +532,7 @@ body.turncard-mine #actionBar { display: none; }
 @keyframes turnGlow { 0%, 100% { box-shadow: 0 0 14px 2px rgba(230, 196, 106, .5), 0 8px 24px rgba(0, 0, 0, .6); } 50% { box-shadow: 0 0 30px 8px rgba(230, 196, 106, .8), 0 8px 24px rgba(0, 0, 0, .6); } }
 #hudPlayers .pcard.out { opacity: .5; filter: grayscale(.7); }
 #hudPlayers .pc-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-#hudPlayers .pc-head .token-badge { flex: none; border-color: var(--pc); box-shadow: 0 0 0 2px var(--pc), 0 1px 4px rgba(0, 0, 0, .6); }
+#hudPlayers .pc-head .token-badge { flex: none; border-color: var(--pt, var(--pc)); box-shadow: 0 0 0 2px var(--pt, var(--pc)), 0 1px 4px rgba(0, 0, 0, .6); }
 #hudPlayers .pname { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; font-family: var(--font); font-size: calc(var(--ui-scale, 1) * 18px); font-weight: 400; color: #f3ead2; }
 #hudPlayers .pname .pn { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #hudPlayers .pcard.out .pname { text-decoration: line-through; }
@@ -575,7 +575,7 @@ body.turncard-mine #actionBar { display: none; }
 
 /* top-centre "whose turn" banner, in that player's colour */
 #turnBanner { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 2 * var(--pw, 264px) - 40px)); padding: 5px 18px 5px 8px; box-sizing: border-box;
-  background: rgba(17, 12, 9, .96); color: #fff4d6; border: 2px solid var(--pc); border-bottom-width: 4px; border-radius: 2px; box-shadow: 0 0 18px -2px var(--pc), 0 6px 18px rgba(0, 0, 0, .6); pointer-events: none;
+  background: rgba(17, 12, 9, .96); color: #fff4d6; border: 2px solid var(--pt, var(--pc)); border-bottom-width: 4px; border-radius: 2px; box-shadow: 0 0 18px -2px var(--pt, var(--pc)), 0 6px 18px rgba(0, 0, 0, .6); pointer-events: none;
   font-family: 'Oswald', sans-serif; font-weight: 600; font-size: calc(var(--ui-scale, 1) * 19px); letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
 #turnBanner[hidden] { display: none; }
 #turnBanner > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -947,7 +947,7 @@ body.guide-open #infoCard { z-index: 260; }
 #announcer.show { opacity: 1; animation: annIn .3s ease-out; }
 #announcer i { font-style: normal; flex: none; }
 #announcer b { font-weight: 700; }
-#announcer .ann-dot { flex: none; width: .55em; height: .55em; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 2px rgba(0, 0, 0, .6); }
+#announcer .ann-dot { flex: none; width: .55em; height: .55em; border-radius: 50%; background: var(--pt, var(--pc)); box-shadow: 0 0 0 2px rgba(0, 0, 0, .6); }
 @keyframes annIn { from { transform: translate(-50%, -50%) scale(.92); } to { transform: translate(-50%, -50%) scale(1); } }
 @media (max-width: 700px) { #announcer { font-size: calc(var(--ui-scale, 1) * 20px); } }
 

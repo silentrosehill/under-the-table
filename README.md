@@ -83,7 +83,7 @@ The first person to join is the host: they pick the map and rules, then press **
   - Retro Wood (desert)
   - Ocean (palm islands)
   - Candy (lollipops)
-- **8 tokens** (🚗 🎩 🐕 🚢 🦖 🚀 🐈 👑) and 8 colors. Each player has their own.
+- **4 pewter tokens** (a 1950s sedan, a fedora, a pocket watch on its chain, a briefcase) and 4 deep noir colors. Each player has their own.
 - **Rules:** buying property, rent (double rent for a full color set), railroads, utilities, taxes, Chance and Community Chest (16 cards each), jail (doubles, $50 fine, Get Out Free cards, 3 doubles in a row sends you to jail), even building of houses and hotels, selling buildings, mortgages, trading cash and properties, bankruptcy, and a winner screen
 - **Optional:** a Taxi Company jackpot, plus a choice of starting cash
 - Chat and a game log (💬). On a computer, the space bar rolls or ends your turn. If you refresh the page, you rejoin automatically.

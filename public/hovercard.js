@@ -6,6 +6,7 @@ import { t } from './i18n.js';
 import { fmtMoney } from './money.js';
 import { effectMult, effectTags, railRent, utilPerPip } from './effects.js';
 import { deEmoji } from './icons.js';
+import { pcText } from './pcolor.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DWELL = 150;
@@ -66,7 +67,7 @@ export function createHoverCard(container) {
   function render(d) {
     el.innerHTML = `<div class="hc-card"><span class="hc-acc" style="background:${d.accent ? esc(d.accent) : 'transparent'}"></span>`
       + `<div class="hc-head"><b>${esc(d.name)}</b>${d.city ? `<small>${esc(d.city)}</small>` : ''}</div>`
-      + (d.owner ? `<div class="hc-row"><i class="hc-dot" style="background:${esc(d.owner.color)}"></i>${esc(d.owner.name)}${d.mortgaged ? ` · <em>${esc(t('Mortgaged'))}</em>` : ''}</div>` : '')
+      + (d.owner ? `<div class="hc-row"><i class="hc-dot" style="background:${esc(pcText(d.owner.color))}"></i>${esc(d.owner.name)}${d.mortgaged ? ` · <em>${esc(t('Mortgaged'))}</em>` : ''}</div>` : '')
       + (d.sale ? `<div class="hc-row sale">${esc(d.sale)}</div>` : '')
       + (d.level || d.rent ? `<div class="hc-row">${[d.level, d.rent].filter(Boolean).map(esc).join(' · ')}</div>` : '')
       + (d.note ? `<div class="hc-row note">${esc(d.note)}</div>` : '')

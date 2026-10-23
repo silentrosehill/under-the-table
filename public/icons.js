@@ -40,6 +40,7 @@ export const ICONS = {
   siren: '<path d="M6 20v-6a6 6 0 0 1 12 0v6"/><path d="M4 20h16"/><path d="M12 4V2M4.500 6.500L3 5M19.500 6.500L21 5"/><path d="M9.500 14a2.500 2.500 0 0 1 2.500-2.500"/>',
   tophat: '<path d="M7 15V5.500h10V15"/><path d="M3 18c0-1.700 4-3 9-3s9 1.300 9 3-4 3-9 3-9-1.300-9-3z"/><path d="M7 11.500h10"/>',
   fedora: '<path d="M2.500 17c0-1.400 3-2.200 9.500-2.200s9.500.8 9.500 2.200-4 3-9.500 3-9.500-1.600-9.500-3z"/><path d="M6.500 14.800C6.500 9 8.500 6 12 6s5.500 3 5.500 8.800"/><path d="M6.700 12.500h10.600M9.500 6.600Q12 9 14.500 6.600"/>',
+  pocketwatch: '<circle cx="12" cy="14" r="7"/><circle cx="12" cy="3.800" r="1.700"/><path d="M10.800 7.700V6.600h2.400v1.100"/><path d="M12 14v-3.500M12 14l2.600 1.600"/><path d="M12 8.500v.8M12 19.300v.8M6.300 14h.8M16.900 14h.8"/>',
   knife: '<path d="M20 4C14 5 10 9 8 13l3 3c4-2 8-6 9-12z"/><path d="M8 13l-4 4 3 3 4-4"/>',
   gun: '<path d="M3 7h16v4h-7.500L10 17H6.500L8 11H3z"/><path d="M11.500 11v2.200"/>',
   spray: `<rect x="8" y="9" width="8" height="12" rx="1.500"/><path d="M9 9V7h6v2M11 7V4h2v3"/>${D([17.500, 5], 0.8)}${D([19.500, 3.500], 0.8)}${D([19.500, 6.500], 0.8)}`,
@@ -102,7 +103,7 @@ export const ICONS = {
   ring: '<circle cx="12" cy="12" r="4.500"/>',
   sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4"/>',
   // tokens (the pieces, as monochrome silhouettes)
-  car: '<path d="M3 16.500v-4l2.500-4.500h9l4.500 4.500h2v4z"/><path d="M9.500 8v4.500M3 12.500h18"/><circle cx="7.500" cy="17" r="2"/><circle cx="16.500" cy="17" r="2"/>',
+  car: '<path d="M2.500 17v-3.200c0-.8.600-1.400 1.600-1.600L7 11.500 9.200 8h6l2.800 3.500 2.300.6c.7.200 1.200.7 1.200 1.500V17z"/><path d="M10.300 8.600l-1.500 2.900h8.200M13.200 8.600v2.900"/><circle cx="7" cy="17.300" r="2"/><circle cx="17" cy="17.300" r="2"/>',
   dog: `<path d="M8.500 4h7l1 11a4.500 4.500 0 0 1-9 0z"/><path d="M8.500 4C5 4 3.500 7 3.500 11c0 2 .8 3.500 2.500 4M15.500 4c3.500 0 5 3 5 7 0 2-.8 3.500-2.500 4"/>${D([10.200, 10], 1)}${D([13.800, 10], 1)}<path d="M10.500 14h3l-1.500 1.800z"/>`,
   ship: '<path d="M3 15h18l-3 5H6z"/><path d="M12 15V4l6 8h-6M10 15V8l-4 5z"/>',
   dino: `<path d="M3.500 16c0-3.500 3.500-5.500 8.500-5.500 4 0 6.500 1.500 7.500 3.500l1.500.5v2.500H18.500l-.5 3H15.500l-.5-3H9.500L9 19.500H6.500L6 16z"/><path d="M7 10.500L8.500 7.500 10 10M10.500 10.500L12 7l1.500 3.500M14 10.800l1.500-2.800 1.200 3"/>${D([18.800, 14.200], .8)}`,
@@ -111,7 +112,7 @@ export const ICONS = {
   crown: '<path d="M3.500 18l-1-10 5 4 4.500-7 4.500 7 5-4-1 10z"/><path d="M4 21h16"/>',
 };
 // the token keys the server uses -> icon
-export const TOKEN_ICON = { car: 'car', hat: 'tophat', dog: 'dog', glass: 'whiskey', ship: 'car', dino: 'dog', rocket: 'car', cat: 'dog', crown: 'tophat' };
+export const TOKEN_ICON = { car: 'car', hat: 'fedora', watch: 'pocketwatch', case: 'briefcase', dog: 'pocketwatch', glass: 'briefcase', ship: 'car', dino: 'pocketwatch', rocket: 'car', cat: 'pocketwatch', crown: 'fedora' };
 
 // emoji (still in the server's log lines and in older data) -> icon key
 export const EMOJI_KEY = {
@@ -120,7 +121,7 @@ export const EMOJI_KEY = {
   '🔪': 'knife', '🔫': 'gun', '💣': 'bomb', '💥': 'bomb', '🎉': 'confetti', '🍾': 'champagne', '🥃': 'whiskey', '⛓': 'handcuffs', '💀': 'skull', '✉': 'envelope', '✉️': 'envelope',
   '🚕': 'taxi', '🔒': 'padlock', '🛏': 'bed', '🚨': 'alarm', '🎁': 'gift', '💼': 'briefcase', '🧾': 'stamp', '⌛': 'hourglass', '⏳': 'hourglass', '⏱': 'hourglass', '⚖': 'scales', '⚖️': 'scales',
   '🧹': 'broom', '⚡': 'bolt', '✦': 'sparkle', '🌍': 'globe', '🔊': 'speaker', '🎥': 'video', '💬': 'chat', '🏷': 'tag', '📢': 'megaphone', '📺': 'tv', '🧭': 'compass', '📀': 'record', '📜': 'log',
-  '🚪': 'door', '▶': 'play', '⚑': 'flag', '🤖': 'robot', '★': 'star', '○': 'ring', '●': 'dot', '$': 'coins', '✕': 'close', '🚗': 'car', '🐕': 'dog', '🚢': 'ship', '🦖': 'dino', '🚀': 'rocket', '🐈': 'cat', '👑': 'crown',
+  '🚪': 'door', '▶': 'play', '⚑': 'flag', '🤖': 'robot', '★': 'star', '○': 'ring', '●': 'dot', '$': 'coins', '✕': 'close', '🚗': 'car', '⌚': 'pocketwatch', '🐕': 'dog', '🚢': 'ship', '🦖': 'dino', '🚀': 'rocket', '🐈': 'cat', '👑': 'crown',
   '✈️': 'arrow', '⚙': 'gear', '⚙️': 'gear', '🪐': 'globe', '🍭': 'sparkle',
 };
 // the tone each icon carries in the event log and the announcer

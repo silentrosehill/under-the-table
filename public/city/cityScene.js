@@ -14,7 +14,8 @@ import { createRoom } from '../room.js';
 import { createProps, viewYaw } from '../props.js';
 import { createDice } from '../dice.js';
 import { makeWheel3D } from '../wheel3d.js';
-import { makePewterToken, setTokenEnvironment, createNameTag, TOKEN_TAG_Y } from '../tokens.js';
+import { makePewterToken, setTokenEnvironment, createNameTag, paintToken, tokenGlow, TOKEN_TAG_Y } from '../tokens.js';
+import { pcGlow } from '../pcolor.js';
 import { fitTopDown, squarePoints } from '../topdown.js';
 import { BOARD_T } from '../board.js';
 import { sfx } from '../sfx.js';
@@ -197,7 +198,8 @@ export function createCityScene(container, { onTileClick, onCard }) {
   // the back room, exactly as in Table Mode: table, bulb, smoke, props
   const room = createRoom(scene, renderer, { tableY: TABLE_Y });
   const post = createPost(renderer, scene, camera, { onShadowSize: size => room.setShadowSize(size) });
-  room.envReady.then(setTokenEnvironment);
+  setTokenEnvironment(null, renderer);
+  room.envReady.then(tex => setTokenEnvironment(tex, renderer));
   const baseExpo = renderer.toneMappingExposure;       // Top-down lifts it a little so the far rows stay readable
   let props = null, lastState = null, alive = true;
   Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f)))
@@ -945,7 +947,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
       body.add(beam, beam.target);
     }
     // a pulsing ring in the player's colour round the base shows whose turn it is (as in Table Mode)
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.37, 0.47, 40), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.37, 0.47, 40), new THREE.MeshBasicMaterial({ color: pcGlow(p.color), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.007;
     g.add(ring);
     city.add(g);
@@ -1278,12 +1280,12 @@ export function createCityScene(container, { onTileClick, onCard }) {
   // owner colour on the kerb band and cornice: moderate emissive so it reads in the dark without blooming; mortgaged goes grey and dim
   function paintOwner(tile) {
     if (!tile.owner) return;
-    const c = new THREE.Color(tile.owner);
+    const c = new THREE.Color(tile.owner), glow = new THREE.Color(pcGlow(tile.owner));
     if (tile.mortgaged) { const l = c.getHSL({}).l; c.setHSL(0, 0, l * 0.5).multiplyScalar(0.7); }
     tile.ownMat.color.copy(c);
-    tile.ownMat.emissive.copy(c);
+    tile.ownMat.emissive.copy(tile.mortgaged ? c : glow);
     tile.ownMat.emissiveIntensity = tile.mortgaged ? 0.12 : 0.45;
-    const bc = new THREE.Color(tile.owner);
+    const bc = glow;
     tile.beam.userData.mats.forEach(m => m.uniforms.color.value.copy(bc));
     tile.beam.userData.lens.color.copy(bc).multiplyScalar(1.6);
   }
@@ -1342,7 +1344,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     const teams = st0.settings.mode === 'teams' && st0.teams;
     for (const p of st0.players) {
       const tk = tokens.get(p.id);
-      tk.name = p.name; tk.color = p.color; tk.enamel.color.set(p.color); tk.enamel.emissive.set(p.color); tk.felt.color.set(teams ? st0.teams[p.team].color : p.color); tk.ring.material.color.set(p.color);
+      tk.name = p.name; tk.color = p.color; paintToken(tk.enamel, p.color); tokenGlow(tk.felt, teams ? st0.teams[p.team].color : p.color); tk.ring.material.color.set(pcGlow(p.color));
       if (p.bankrupt && !tk.out) { tk.out = true; tween(900, q => tk.g.scale.setScalar(Math.max(0.001, 1 - q)), () => { tk.g.visible = false; }); }
       if (p.pos !== tk.target) { tk.queue.push({ from: tk.target, n: (p.pos - tk.target + 40) % 40, fast: true }); tk.target = p.pos; }
       if (p.inJail !== tk.jailedState) { tk.jailedState = p.inJail; if (p.inJail) pendingFx.push(() => { tk.jailed = true; }); else tk.jailed = false; }
@@ -1355,7 +1357,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
         tile.owner = oc;
         tile.trim.visible = tile.band.visible = tile.plate.visible = !!oc;
         if (oc) {
-          tile.plate.material.color.copy(new THREE.Color(oc).multiplyScalar(0.55));
+          tile.plate.material.color.copy(new THREE.Color(pcGlow(oc)).multiplyScalar(0.6));
           paintOwner(tile);
           if (!firstSync) pendingFx.push(() => { sfx.buy(); frameTile(i, 2800); });
         }
@@ -1526,6 +1528,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     resetView,
     select(i) { selected = i; },
     debugView(px, py, pz, tx = 0, ty = 0, tz = 0) { userUntil = performance.now() + 3600e3; camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); controls.update(); },   // (test harness)
+    tokenWorld: pid => tokens.get(pid).g.getWorldPosition(new THREE.Vector3()).toArray(),   // (test harness)
     tokenScreen(pid) {                                                 // where a piece is on the page (test harness)
       const tk = tokens.get(pid), r = renderer.domElement.getBoundingClientRect(), v = tk.g.getWorldPosition(new THREE.Vector3());
       v.y += 0.4 * TOKEN_S * S; v.project(camera);

@@ -19,9 +19,9 @@ Every third-party asset that ships with the game (in `public/assets/`). Raw down
 
 | Asset | Author | Source | License |
 |---|---|---|---|
-| Car Kit — sedan (car token, re-materialled as pewter) | Kenney | https://kenney.nl/assets/car-kit | CC0 |
+| Vintage Pocket Watch (pocket-watch token, re-finished as pewter, with a chain added in code) | Tal Swicegood | https://polyhaven.com/a/vintage_pocket_watch | CC0 |
 
-The other seven tokens (top hat, crown, rocket, ship, dog, cat, dino) are modelled in code (`public/tokens.js`).
+The other three tokens (fedora, 1950s sedan, briefcase) are modelled in code (`public/tokens.js`).
 
 ## City Mode (Kenney, CC0)
 

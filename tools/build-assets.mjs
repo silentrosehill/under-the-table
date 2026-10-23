@@ -48,9 +48,6 @@ for (const [name, size] of Object.entries(MODELS)) {
     '--texture-compress', 'webp', '--texture-size', String(size), '--simplify', 'false',
     ...(keepParts ? ['--join', 'false', '--flatten', 'false'] : [])], { stdio: 'inherit' });
 }
-// Kenney car (CC0) → the car token; re-materialled as pewter in tokens.js
-execFileSync(cli, ['optimize', src('kenney-car-kit/x/Models/GLB format/sedan.glb'), out('models/token_car.glb'), '--compress', 'meshopt',
-  '--texture-compress', 'webp', '--texture-size', '256'], { stdio: 'inherit' });
 for (const [from, to, size] of TEXTURES) {
   await sharp(src(from)).resize(size, size, { fit: 'inside' }).webp({ quality: 88 }).toFile(out(to));
   console.log('texture', to);

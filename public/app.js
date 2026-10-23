@@ -10,10 +10,12 @@ import { effectMult, effectTags, activeEffects, EFFECT_ICON, railRent, utilPerPi
 import { createEventFx } from './eventfx.js';
 import { ms as slow, setSpeed, speed } from './speed.js';
 import { initInfo, infoAttr, tipAttr, openGuide, closeGuide, guideOpen } from './info.js';
+import { pcText } from './pcolor.js';
 import { ic, emo, deEmoji, keyOfEmoji, TOKEN_ICON, TONE, stripEmoji } from './icons.js';
 import { createSettings } from './settings.js';
 
-const TOKEN_EMOJI = { car: '🚗', hat: '🎩', dog: '🐕', glass: '🥃', ship: '🚗', dino: '🐕', rocket: '🚗', cat: '🐕', crown: '🎩' };   // (the last five are retired pieces, shown as the one they became)
+const TOKEN_EMOJI = { car: '🚗', hat: '🎩', watch: '⌚', case: '💼', dog: '⌚', glass: '💼', ship: '🚗', dino: '⌚', rocket: '🚗', cat: '⌚', crown: '🎩' };   // (the last six are retired pieces, shown as the one they became)
+const TOKEN_NAME = { car: 'Sedan', hat: 'Fedora', watch: 'Pocket watch', case: 'Briefcase' };
 const MAP_INFO = {
   underworld: ['🕴️', 'Infamous districts of New York, Paris, Tokyo, London and more'],
   random: ['🎲', 'A brand-new random board every game'],
@@ -133,7 +135,7 @@ function buyoutOption(sp, p) {
   return { label: t('Buy out {tile} from {owner} — {cost}', { tile: splitName(sp.name)[0], owner: owner.name, cost: cash(cost) }), ok: p.money >= cost, reason: p.money >= cost ? '' : needMore(p, cost) };
 }
 const myTurn = () => S.phase === 'playing' && cur() && cur().id === S.you;
-const badge = p => `<span class="token-badge" style="--pc:${p.color}" ${tipAttr(p.name)}><i>${ic(TOKEN_ICON[p.token] || 'user')}</i></span>`;
+const badge = p => `<span class="token-badge" style="--pc:${p.color};--pt:${pcText(p.color)}" ${tipAttr(p.name)}><i>${ic(TOKEN_ICON[p.token] || 'user')}</i></span>`;
 
 // graphics quality (the scene has one fixed look: the bulb)
 function currentMood() { return 'night'; }
@@ -253,7 +255,7 @@ $('#joinForm').onsubmit = async e => {
 // ---------------------------------------------------------------- lobby
 
 const teamsMode = () => S.settings.mode === 'teams';
-const teamTag = p => (teamsMode() && S.teams ? `<span class="team-dot" style="background:${S.teams[p.team].color}"${tipAttr(S.teams[p.team].name)}></span>` : '');
+const teamTag = p => (teamsMode() && S.teams ? `<span class="team-dot" style="background:${pcText(S.teams[p.team].color)}"${tipAttr(S.teams[p.team].name)}></span>` : '');
 
 function lobbyPlayerRow(p, isHost) {
   return `<div class="lp">${badge(p)}<span class="name">${esc(p.name)}</span>
@@ -280,7 +282,7 @@ function renderLobby() {
     lp.innerHTML = [0, 1].map(k => {
       const team = S.teams[k], members = S.players.filter(p => p.team === k);
       const canJoin = my.team !== k && members.length < 2;
-      return `<div class="team-box" style="--tc:${team.color}">
+      return `<div class="team-box" style="--tc:${pcText(team.color)}">
         <div class="team-head"><span>${esc(team.name)}</span>${canJoin ? `<button class="btn small" data-team="${k}">${t('Join')}</button>` : ''}</div>
         ${members.map(p => lobbyPlayerRow(p, isHost)).join('') || `<p class="muted small">${t('Empty seat')}</p>`}
         ${members.length === 1 ? `<p class="muted small">${t('1 seat left')}</p>` : ''}
@@ -298,7 +300,7 @@ function renderLobby() {
   for (const tok of S.tokens) {
     const taken = S.players.some(p => p.token === tok && p.id !== S.you);
     const b = el('button', `pick${my.token === tok ? ' sel' : ''}${taken ? ' taken' : ''}`, ic(TOKEN_ICON[tok] || 'user'));
-    b.dataset.tip = tok; b.setAttribute('aria-label', tok); b.disabled = taken;
+    b.dataset.tip = t(TOKEN_NAME[tok] || tok); b.setAttribute('aria-label', t(TOKEN_NAME[tok] || tok)); b.disabled = taken;
     b.onclick = () => act('profile', { token: tok });
     tp.append(b);
   }
@@ -306,7 +308,7 @@ function renderLobby() {
   for (const c of S.colors) {
     const taken = S.players.some(p => p.color === c && p.id !== S.you);
     const b = el('button', `pick swatch${my.color === c ? ' sel' : ''}${taken ? ' taken' : ''}`);
-    b.style.background = c; b.disabled = taken;
+    b.style.background = c; b.style.setProperty('--pt', pcText(c)); b.disabled = taken;
     b.onclick = () => act('profile', { color: c });
     cp.append(b);
   }
@@ -489,6 +491,8 @@ async function showCard(card, pid) {
   const face = { key, type, title: info ? t(info.name) : card.title, text: info ? t(info.face) : cardText(card.text), value: lc && lc.cost ? cash(lc.cost) : '' };
   const box = $('#cardFx'), cardEl = box.querySelector('.cfx-card'), inner = box.querySelector('.cfx-inner');
   const my = ++cardSeq;
+  let flipped = false;                               // the side log / announcer wait for the flip (or for this card to be replaced)
+  const flip = () => { if (!flipped) { flipped = true; cardFlippedNow(); } };
   clearTimeout(cardTimer);
   [cardEl, inner].forEach(e => e.getAnimations().forEach(a => a.cancel()));
   cardEl.style.opacity = '';
@@ -511,19 +515,20 @@ async function showCard(card, pid) {
 
   if (card.casino) {                               // dealt at a casino: the dealer shuffles a fan of card backs, then deals one forward
     box.querySelector('.cfx-who').textContent = t('The dealer deals…'); box.querySelector('.cfx-who').style.opacity = 1;
-    if (!await shuffleIntro(box, cardEl, inner, card.deck, W, () => my !== cardSeq)) return;
+    if (!await shuffleIntro(box, cardEl, inner, card.deck, W, () => my !== cardSeq)) return flip();
     box.querySelector('.cfx-who').textContent = t('{name} drew {deck}', { name: who.name, deck: card.title });
   } else {
     sfx.cardDraw();
     const a1 = cardEl.animate([{ transform: `translate(0, ${y0}px) scale(.28)`, opacity: 0 }, { opacity: 1, offset: 0.25 }, { transform: `translate(0, ${y0 * 0.3}px) scale(.62)`, opacity: 1 }], { duration: slow(560), easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' });
     await done(a1, slow(560));
-    if (my !== cardSeq) return;
+    if (my !== cardSeq) return flip();
     sfx.cardFlip();
     const a2 = cardEl.animate([{ transform: `translate(0, ${y0 * 0.3}px) scale(.62)` }, { transform: 'translate(0, 0) scale(1)' }], { duration: slow(640), easing: 'cubic-bezier(.3,1.2,.4,1)', fill: 'forwards' });
     const a3 = inner.animate([{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(180deg)' }], { duration: slow(640), easing: 'ease-in-out', fill: 'forwards' });
     await Promise.all([done(a2, slow(640)), done(a3, slow(640))]);
-    if (my !== cardSeq) return;
+    if (my !== cardSeq) return flip();
   }
+  flip();
   box.classList.add('beat');                       // the effect beat: warm gold or cold red light, and the sting
   sfx.cardSting(key);
   txt.style.transition = box.querySelector('.cfx-who').style.transition = ok.style.transition = 'opacity .4s';
@@ -846,7 +851,7 @@ function renderBribePick(box) {
   scene && scene.select(-1);
   const jail = S.board[10] ? splitName(S.board[10].name)[0] : '';
   const rows = list.map(o => `<button class="cp-row${pick.sel === o.id ? ' sel' : ''}" data-pid="${esc(o.id)}">
-      <span class="chip" style="--gc:${esc(o.color || '#555')}"></span><b>${esc(o.name)}</b>
+      <span class="chip" style="--gc:${esc(pcText(o.color || '#555'))}"></span><b>${esc(o.name)}</b>
       <span class="cp-meta">${cash(o.money)}</span></button>`).join('');
   const sel = pick.sel != null && pById(pick.sel);
   const confirm = sel ? `<div class="cp-confirm"><p>${esc(t('Bribe the police: {name} is hauled off to {jail}.', { name: sel.name, jail }))}</p><button class="btn big" id="cpGo">${t('Frame {name}', { name: esc(sel.name) })}</button></div>` : '';
@@ -965,17 +970,18 @@ function handleCasino() {
   lastCasinoId = c.id;
   if (c.stale || c.mode === 'card') return;       // a dealt card plays through the card animation (showCard), not here
   const where = S.board[c.pos] ? splitName(S.board[c.pos].name)[0] : t('Casino');
+  const gid = gateIssue('casino', 22000);            // the result lines wait for the wheel to stop and the verdict to open
   const start = () => {
     scene.hold && scene.hold(6600);                // the wheel turns ~4 s, rests, then the verdict: later effects wait
     for (const q of ['#casinoPopup', '#globalPopup']) { clearTimeout($(q)._t); $(q).hidden = true; }   // an earlier verdict never sits under the new wheel
     spinEventWheel({ segments: WHEEL_SEGS(), target: c.key, title: where, duration: slow(3800), onTick: f => sfx.wheelTick(f) })
-      .then(seg => { if (!seg) return; showCasino(c); evfx.casino(c); });
+      .then(seg => { gateRelease('casino', gid); if (!seg) return; showCasino(c); evfx.casino(c); }, () => gateRelease('casino', gid));
   };
   if (scene.casino) scene.casino(c, null, start);
   else scene.whenIdle(start);
 }
 
-if (/[?&]debug\b/.test(location.search)) window.__hud = { wheel: key => spinEventWheel({ segments: WHEEL_SEGS(), target: key, title: 'Club Lucky Seven', duration: slow(3800), onTick: f => sfx.wheelTick(f) }), announce: (icon, text) => announce({ icon, text }) };   // (test harness)
+if (/[?&]debug\b/.test(location.search)) window.__hud = { wheel: key => spinEventWheel({ segments: WHEEL_SEGS(), target: key, title: 'Club Lucky Seven', duration: slow(3800), onTick: f => sfx.wheelTick(f) }), announce: (icon, text) => announce({ icon, text }), gate: () => ({ idle: sceneIdle(), pend: evPend.map(e => e.gate + ':' + e.e.text), cardBusy, tix: JSON.stringify(gateTix) }) };   // (test harness)
 // ---------------------------------------------------------------- global wheel (every N rounds, hits everyone)
 const GLOBAL_SEGS = () => [
   ['squatters', '🛏', 'bad', 'Squatters', 'squatters_in'], ['police', '🚓', 'bad', 'Police Raids', 'casino-police'], ['mayor', '🎩', 'good', "Mayor's Favor", 'casino-mayor'],
@@ -994,7 +1000,7 @@ function showGlobal(gl) {
   art.innerHTML = artSrc ? `<img src="${artSrc}" alt="" draggable="false">` : `<span class="cc-sym">${emo(seg.icon)}</span>`;
   box.querySelector('.gl-rows').innerHTML = gl.results.map(r => {
     const p = pById(r.player);
-    return p ? `<li><i style="background:${esc(p.color)}"></i><b>${esc(p.name)}</b><span>${deEmoji(esc(globalText(r.text)))}</span></li>` : '';
+    return p ? `<li><i style="background:${esc(pcText(p.color))}"></i><b>${esc(p.name)}</b><span>${deEmoji(esc(globalText(r.text)))}</span></li>` : '';
   }).join('');
   box.classList.remove('show'); box.hidden = false; void box.offsetWidth; box.classList.add('show');
   sfx.casinoEvent && sfx.casinoEvent(GLOBAL_SND.has(seg.key) ? seg.key : 'whim');   // every global event has its own sound; 'whim' only for an unknown key
@@ -1007,12 +1013,13 @@ function handleGlobal() {
   if (lastGlobalId === null || !gl) { lastGlobalId = gl ? gl.id : 0; return; }   // first sync: don't replay an old spin
   if (gl.id === lastGlobalId) return;
   lastGlobalId = gl.id;
+  const gid = gateIssue('global', 24000);            // the result lines wait for the wheel to stop
   scene.whenIdle(() => {
     scene.hold && scene.hold(7800);                // fade-in, ~5 s of spin, the highlight: the first turn waits
     wheelBusy = performance.now() + 9000;
-    if (scene.globalWheel) { scene.globalWheel(GLOBAL_SEGS(), gl.key).then(() => { wheelBusy = 0; showGlobal(gl); evfx.global(gl); }); return; }   // modelled wheel on the board
+    if (scene.globalWheel) { scene.globalWheel(GLOBAL_SEGS(), gl.key).then(() => { wheelBusy = 0; gateRelease('global', gid); showGlobal(gl); evfx.global(gl); }, () => gateRelease('global', gid)); return; }   // modelled wheel on the board
     spinEventWheel({ segments: GLOBAL_SEGS(), target: gl.key, title: t('GLOBAL EVENT'), duration: slow(5200), big: true, onTick: f => sfx.wheelTick(f) })
-      .then(seg => { if (seg) { showGlobal(gl); evfx.global(gl); } });
+      .then(seg => { gateRelease('global', gid); if (seg) { showGlobal(gl); evfx.global(gl); } }, () => gateRelease('global', gid));
   });
 }
 
@@ -1048,7 +1055,7 @@ const settings = createSettings({
   isCity: () => view === 'city', labelStyle, setLabelStyle, labelsAll, setLabelsAll,
   quality, setQuality, broadcast: broadcastOn, setBroadcast,
   lang: () => lang, setLang: l => { setLang(l); labelTools(); syncTools(); if (S) render(); },
-  ann: annLevel, setAnn: v => { safeSet('mono.annLevel', v); if (v === 'off') clearAnnouncer(); syncTools(); },
+  annPos, setAnnPos, ann: annLevel, setAnn: v => { safeSet('mono.annLevel', v); if (v === 'off') clearAnnouncer(); syncTools(); },
   sideLog: sideLogOn, setSideLog: on => { safeSet('mono.sideLog', on ? '1' : '0'); if (S) renderEventLog(); syncTools(); },
   hover: hoverOn, setHover: on => { safeSet('mono.hover', on ? '1' : '0'); syncTools(); },
   scale: () => scalePct, setScale: (pct, commit) => setUiScale(pct, commit),
@@ -1140,8 +1147,8 @@ function handleEvents() {
     } else if (e.type === 'chaos') {
       scene.whenIdle(() => { flash(chaosName(e.name), 'headline', t('Extra! Extra!')); scene.chaos(e.key); toast(chaosDesc(e.desc)); });
     } else if (e.type === 'mafia') {
-      if (e.kind === 'note' && e.player === S.you) scene.whenIdle(() => showMafiaNote());
-      else if (e.kind === 'collect') scene.whenIdle(() => { evfx.mafiaCollect(e); showMafiaCollect(e); });
+      if (e.kind === 'note' && e.player === S.you) { const gid = gateIssue('mafia'); scene.whenIdle(() => showMafiaNote(gid)); }
+      else if (e.kind === 'collect') { const gid = gateIssue('mafia'); scene.whenIdle(() => { evfx.mafiaCollect(e); showMafiaCollect(e); gateRelease('mafia', gid); }); }
     }
   }
   lastEventSeq = seq;
@@ -1332,7 +1339,7 @@ function openRepay() {
 }
 
 // an envelope slides under a door at the bottom of the screen, then the note card
-function showMafiaNote() {
+function showMafiaNote(gid) {
   const my = me(), L = my && my.loan;
   const door = el('div', 'mafia-door', '<div class="md-door"><i class="md-knob"></i></div><div class="md-floor"></div><div class="md-env"><span></span></div>');
   document.body.append(door);
@@ -1342,7 +1349,8 @@ function showMafiaNote() {
   env.animate([{ transform: 'translate(0, -4px) rotate(-5deg)' }, { transform: 'translate(0, 46px) rotate(-3deg)' }], { duration: slow(1500), delay: slow(500), easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'forwards' });
   setTimeout(() => {
     door.animate([{ opacity: 1 }, { opacity: 0 }], { duration: slow(500), fill: 'forwards' }).finished.then(() => door.remove(), () => door.remove());
-    if (!$('#modal').hidden && modalKind !== 'mafia-note') return;
+    if (!$('#modal').hidden && modalKind !== 'mafia-note') { gateRelease('mafia', gid); return; }
+    gateRelease('mafia', gid);
     openModal('mafia-note', `
       <div class="mafia-modal"><div class="mafia-card">${faceHtml({ key: 'mafia-note', type: 'mafia', title: t('Two turns.'), text: t('— The Family') }, mafiaCardW())}</div>
       <div class="mafia-terms"><p>${L ? t('Repay {due} before your loan runs out.', { due: `<b>${cash(L.due)}</b>` }) : ''}</p><small class="muted">${deEmoji(esc(t('Use the 🎩 on your panel to repay.')))}</small></div></div>
@@ -1591,7 +1599,8 @@ function renderTurnCard() {
   box.hidden = !show;
   const my = me();
   document.body.classList.toggle('turncard-mine', show && live && turnCard.mine && my && my.money >= 0);
-  document.body.classList.toggle('turncard-centre', show && live && turnCard.mine && S.turnState === 'upgrade');   // the upgrade choice always sits in the middle
+  document.body.classList.toggle('turncard-centre', show && live && turnCard.mine);                     // anything with buttons for me sits in the middle; other players' cards stay small, at the side
+  document.body.classList.toggle('turncard-compact', show && live && turnCard.mine && S.turnState === 'upgrade');   // (the upgrade list drops the photo to fit)
   if (!show) { if (scene && selectedPos == null) scene.select(-1); return; }
   if (box._html !== turnCard.html) {
     box.innerHTML = box._html = turnCard.html;
@@ -1687,7 +1696,7 @@ function playerCard(p, idx, isHost) {
   const owned = S.board.filter(sp => S.props[sp.i] && S.props[sp.i].owner === p.id);
   const turn = S.phase === 'playing' && idx === S.turn && !p.bankrupt;
   const card = el('div', `pcard slot${idx % 4}${turn ? ' turn' : ''}${turn && p.id === S.you ? ' mine' : ''}${p.bankrupt ? ' out' : ''}`);
-  card.style.setProperty('--pc', p.color); card.dataset.pid = p.id;
+  card.style.setProperty('--pc', p.color); card.style.setProperty('--pt', pcText(p.color)); card.dataset.pid = p.id;
   const team = teamsMode() && S.teams && S.teams[p.team];
   const fx = playerEffects(p).map(e => `<span class="fx ${e.tone || ''}"${infoAttr(e.info.key, e.info.p)}><i>${emo(e.icon || '✦')}</i>${e.short ? `<b>${esc(e.short)}</b>` : ''}</span>`).join('');
   const loan = !p.bankrupt && p.loan && typeof p.loan === 'object' ? p.loan : null;   // mafia debt
@@ -1703,7 +1712,7 @@ function playerCard(p, idx, isHost) {
     <div class="pc-head">
       ${badge(p)}
       <div class="pname"><span class="pn">${esc(p.name)}</span><span class="dot${p.connected ? '' : ' off'}"${infoAttr(p.connected ? 'online' : 'offline')}></span>
-        ${p.bot ? `<span class="you"${infoAttr('bot')}>${t('bot')}</span>` : ''}${p.id === S.you ? `<span class="you"${infoAttr('you')}>${t('you')}</span>` : ''}${team ? `<span class="you team" style="--tc:${team.color}"${infoAttr('team', { name: team.name, rent: t(S.settings.teamRent === 'full' ? 'full rent' : S.settings.teamRent === 'none' ? 'no rent' : 'half rent') })}>${esc(team.name)}</span>` : ''}</div>
+        ${p.bot ? `<span class="you"${infoAttr('bot')}>${t('bot')}</span>` : ''}${p.id === S.you ? `<span class="you"${infoAttr('you')}>${t('you')}</span>` : ''}${team ? `<span class="you team" style="--tc:${pcText(team.color)}"${infoAttr('team', { name: team.name, rent: t(S.settings.teamRent === 'full' ? 'full rent' : S.settings.teamRent === 'none' ? 'no rent' : 'half rent') })}>${esc(team.name)}</span>` : ''}</div>
     </div>
     ${turn ? `<span class="turn-tag"${infoAttr('turn', { name: p.name })}>${p.id === S.you ? t('YOUR TURN') : t("{name}'S TURN", { name: esc(p.name) })}</span>` : ''}
     <div class="pc-money"><span class="money" data-pid="${p.id}">${cash(Math.round(moneyShown[p.id] ?? p.money))}</span>${deltaTag(p.id)}<span class="pc-mini">${fxN ? `<em${infoAttr('fxcount', { n: fxN })}>${ic('sparkle')}${fxN}</em>` : ''}${loan ? `<em class="mf${loanLeft <= 2 ? ' urgent' : ''}"${infoAttr('mafia', loanInfo)}>${ic('fedora')}</em>` : ''}</span><span class="worth"${infoAttr('worth', { amount: cash(p.worth || 0) })}>${t('worth {amount}', { amount: cash(p.worth || 0) })}</span></div>
@@ -1750,7 +1759,7 @@ function renderTurnBanner() {
   box.hidden = false;
   if (box._k === k) return;
   box._k = k;
-  box.style.setProperty('--pc', p.color);
+  box.style.setProperty('--pc', p.color); box.style.setProperty('--pt', pcText(p.color));
   box.innerHTML = `${badge(p)}<span>${p.id === S.you ? t('YOUR TURN') : t("{name}'S TURN", { name: esc(p.name) })}</span>`;
   box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop');
 }
@@ -1773,56 +1782,125 @@ let evLines = [], evKey = null;
 const bare = text => text.replace(/^\S+\s/u, '');
 function eventLine(text) {
   let m;
-  if ((m = CHAOS_RE.exec(text))) return { icon: 'bolt', text: chaosName(m[1]) };
-  if (/^🎡 Global wheel: /.test(text)) return { icon: 'roulette', text: bare(tr(text)) };
-  if (/ rolled \d+ \+ \d+/.test(text)) return { icon: 'dice', text: tr(text) };
-  if ((m = /^(🎩|✉|🔫) (?=.*(Mafia|A note slides))(.+)$/u.exec(text))) return { icon: m[1] === '🎩' ? 'fedora' : keyOfEmoji(m[1]), text: bare(tr(text)) };
-  if ((m = /^(.+) landed on (.+)\.$/.exec(text))) return { icon: 'arrow', text: `${m[1]} → ${splitName(m[2])[0]}` };
-  if ((m = /^⚖ Rent split: (.+) keeps (.+), (.+) gets (.+) \((\d+)%\)\.$/.exec(text))) return { icon: 'scales', text: t('{a} {x} · {b} {y}', { a: m[1], x: m[2], b: m[3], y: m[4] }) };
-  if ((m = /^⚖ (.+) set their team's rent share to (\d+)% for the teammate\.$/.exec(text))) return { icon: 'scales', text: tr(text).replace(/^⚖\s/, '') };
-  if ((m = /^(.+) paid (.+) rent to (.+)\.$/.exec(text))) return { icon: 'coins', text: t('{a} paid {amount} to {b}', { a: m[1], amount: m[2], b: m[3] }) };
-  if ((m = /^(🚨|💼|🎁) (.+)$/u.exec(text))) return { icon: keyOfEmoji(m[1]), text: bare(tr(text)) };
-  if ((m = /^(.+) drew (.+?): /.exec(text))) return { icon: 'card', text: t('{a} drew {card}', { a: m[1], card: m[2] }) };
-  if (/ (bought|upgraded) | bought out /.test(text)) return { icon: 'crane', text: tr(text) };
-  if ((m = /^(🎰|💵|🚓|🎩|🔪|💣|🎉|🥃|⌛) (?=.+ spins the wheel at |One Too Many: |Billionaire's Whim: |Police Investigation: |Mayor's Favor: |Gang Turf: |Building Bombing: |Economic Boom: |.+ is closed by the police — |.+ has ended\.$)(.+)$/u.exec(text))) return { icon: keyOfEmoji(m[1]), text: casinoText(m[2]) };
-  if ((m = PLAY_RE.exec(text))) return { icon: keyOfEmoji(m[1]), text: bare(tr(text)) };
-  if (/ went bankrupt!/.test(text)) return { icon: 'skull', text: tr(text) };
-  if (/ was sent to | stays in | rolled out of | to get out\.$| fine after 3 tries\.$|speeding!$|Get-Out-Free/.test(text)) return { icon: 'handcuffs', text: tr(text) };
+  if ((m = CHAOS_RE.exec(text))) return { icon: 'bolt', text: chaosName(m[1]), gate: 'move' };
+  if (/^🎡 Global wheel: /.test(text)) return { icon: 'roulette', text: bare(tr(text)), gate: 'global' };
+  if (/ rolled \d+ \+ \d+/.test(text)) return { icon: 'dice', text: tr(text), gate: 'now' };
+  if ((m = /^(🎩|✉|🔫) (?=.*(Mafia|A note slides))(.+)$/u.exec(text))) return { icon: m[1] === '🎩' ? 'fedora' : keyOfEmoji(m[1]), text: bare(tr(text)), gate: 'mafia' };
+  if ((m = /^(.+) landed on (.+)\.$/.exec(text))) return { icon: 'arrow', text: `${m[1]} → ${splitName(m[2])[0]}`, gate: 'move' };
+  if ((m = /^⚖ Rent split: (.+) keeps (.+), (.+) gets (.+) \((\d+)%\)\.$/.exec(text))) return { icon: 'scales', text: t('{a} {x} · {b} {y}', { a: m[1], x: m[2], b: m[3], y: m[4] }), gate: 'move' };
+  if ((m = /^⚖ (.+) set their team's rent share to (\d+)% for the teammate\.$/.exec(text))) return { icon: 'scales', text: tr(text).replace(/^⚖\s/, ''), gate: 'move' };
+  if ((m = /^(.+) paid (.+) rent to (.+)\.$/.exec(text))) return { icon: 'coins', text: t('{a} paid {amount} to {b}', { a: m[1], amount: m[2], b: m[3] }), gate: 'move' };
+  if ((m = /^(🚨|💼|🎁) (.+)$/u.exec(text))) return { icon: keyOfEmoji(m[1]), text: bare(tr(text)), gate: 'move' };
+  if ((m = /^(.+) drew (.+?): /.exec(text))) return { icon: 'card', text: t('{a} drew {card}', { a: m[1], card: m[2] }), gate: 'card' };
+  if (/ (bought|upgraded) | bought out /.test(text)) return { icon: 'crane', text: tr(text), gate: 'move' };
+  if ((m = /^(🎰|💵|🚓|🎩|🔪|💣|🎉|🥃|⌛) (?=.+ spins the wheel at |One Too Many: |Billionaire's Whim: |Police Investigation: |Mayor's Favor: |Gang Turf: |Building Bombing: |Economic Boom: |.+ is closed by the police — |.+ has ended\.$)(.+)$/u.exec(text))) return { icon: keyOfEmoji(m[1]), text: casinoText(m[2]), gate: S.lastCasino && S.lastCasino.mode === 'card' ? 'move' : 'casino' };
+  if ((m = PLAY_RE.exec(text))) return { icon: keyOfEmoji(m[1]), text: bare(tr(text)), gate: 'move' };
+  if (/ went bankrupt!/.test(text)) return { icon: 'skull', text: tr(text), gate: 'move' };
+  if (/ was sent to | stays in | rolled out of | to get out\.$| fine after 3 tries\.$|speeding!$|Get-Out-Free/.test(text)) return { icon: 'handcuffs', text: tr(text), gate: 'move' };
   return null;
 }
 // an event sentence as HTML: players' names bold in their colour, amounts picked out, leftover emoji turned into icons
 const AMT_RE = /[-−+]?[$€£₡¢¥]\d[\d.,]*[KM]?/g;
+// tile names in a line: bold cream with a tick and underline in the district colour (brass for stations, utilities and specials).
+// One pattern for names and tiles (longest first, whole words only) so a tile name never lands inside a player's name.
+const TILE_BRASS = '#c9a24f';
+let nameKey = '', nameRe = null, nameTile = null;
+function nameMatcher() {
+  const ps = S ? S.players.filter(p => p.name) : [];
+  const key = (S ? S.board.map(sp => sp.name).join('|') : '') + '#' + ps.map(p => p.name).join('|');
+  if (key === nameKey) return nameRe;
+  nameKey = key; nameTile = new Map();
+  const alts = [];
+  for (const p of ps) alts.push(esc(p.name));
+  for (const sp of S ? S.board : []) {
+    const col = sp.type === 'property' && sp.color ? sp.color : TILE_BRASS;
+    for (const nm of [sp.name, splitName(sp.name)[0]]) { const e = esc(nm.trim()); if (nm.trim().length >= 3 && !nameTile.has(e)) { nameTile.set(e, col); alts.push(e); } }
+  }
+  const uniq = [...new Set(alts)].sort((a, b) => b.length - a.length);
+  const body = uniq.map(a => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  try { nameRe = uniq.length ? new RegExp('(?<![\\p{L}\\p{N}])(?:' + body + ')(?![\\p{L}\\p{N}])', 'gu') : null; }
+  catch { nameRe = uniq.length ? new RegExp('(?:' + body + ')', 'g') : null; }   // (no look-behind in very old browsers)
+  return nameRe;
+}
 function richLine(text) {
-  const ps = S ? S.players.filter(p => p.name).sort((a, b) => b.name.length - a.name.length) : [];
+  const re = S ? nameMatcher() : null;
   let h = esc(text);
-  if (ps.length) {
-    const re = new RegExp(ps.map(p => esc(p.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
-    h = h.replace(re, n => { const p = ps.find(q => esc(q.name) === n); return `<b class="who" style="color:${p ? esc(p.color) : 'inherit'}">${n}</b>`; });
+  if (re) {
+    h = h.replace(re, n => {
+      const p = S.players.find(q => q.name && esc(q.name) === n);
+      if (p) return `<b class="who" style="color:${esc(pcText(p.color))}">${n}</b>`;
+      return nameTile.has(n) ? `<b class="tilename" style="--tc:${esc(nameTile.get(n))}">${n}</b>` : n;
+    });
   }
   return deEmoji(h.replace(AMT_RE, m => (m.includes('<') ? m : `<mark class="amt">${m}</mark>`)));
 }
 const toneOf = icon => TONE[icon] || 'neutral';
+// A line shows (side log and announcer) only once what it describes is visible, so nothing spoils a result:
+//   now: dice, at roll time · move: the moving piece has arrived (scene idle) · card: the drawn card has been dealt and turned over
+//   casino / global / mafia: the 2D wheel stopped and its verdict opened / the 3D wheel stopped / the mafia modal opened
+// The queue keeps the log's order: a later line never shows before an earlier one's gate opens (20 s at most per line).
+const gateTix = { casino: [], global: [], mafia: [] };       // pending tickets { id, until }, issued by the handlers that run the show
+let gateSeq = 0, cardOrd = 0, cardFlipped = 0, evPend = [], evPump = null;
+function gateIssue(kind, maxMs = 16000) { const id = ++gateSeq; gateTix[kind].push({ id, until: performance.now() + maxMs }); return id; }
+function gateRelease(kind, id) { const k = gateTix[kind].findIndex(x => x.id === id); if (k >= 0) gateTix[kind].splice(k, 1); }
+function cardFlippedNow() { cardFlipped = Math.min(cardFlipped + 1, cardOrd); }
+const sceneIdle = () => !scene || scene.isIdle();
+function gateOpen(en, now) {
+  switch (en.gate) {
+    case 'now': return true;
+    case 'card': return cardFlipped >= en.ord || (sceneIdle() && !cardBusy);
+    case 'casino': case 'global': case 'mafia': return !gateTix[en.gate].some(x => x.id <= en.need && x.until > now);
+    default: return sceneIdle();
+  }
+}
+function evFlush() {
+  const now = performance.now();
+  let changed = false;
+  while (evPend.length) {
+    const en = evPend[0];
+    if (!en.since) en.since = now;
+    if (!gateOpen(en, now) && now - en.since < 20000) break;
+    if (window.__hud) (window.__fl ||= []).push({ g: en.gate, x: en.e.text, idle: sceneIdle(), open: gateOpen(en, now), cb: cardBusy });   // (test harness)
+    evPend.shift(); evLines.push(en.e); changed = true;
+    announce(en.e);
+  }
+  if (changed) { evLines = evLines.slice(-EVENT_MAX); paintEventLog(); }
+  if (!evPend.length) { clearInterval(evPump); evPump = null; }
+}
 function renderEventLog() {
   const box = $('#eventLog');
-  if (!S || S.phase !== 'playing') { evLines = []; evKey = null; box.hidden = true; return; }
+  if (!S || S.phase !== 'playing') { evLines = []; evPend = []; evKey = null; box.hidden = true; return; }
   const keyOf = l => l.t + '|' + l.text;
   let from = 0;
   if (evKey) { for (let k = S.log.length - 1; k >= 0; k--) if (keyOf(S.log[k]) === evKey) { from = k + 1; break; } }
-  if (!evKey || from === 0) from = Math.max(0, S.log.length - 12);
+  if (!evKey || from === 0) { from = Math.max(0, S.log.length - 12); evPend = []; }
+  const fresh = !!evKey && from > 0;
   for (const l of S.log.slice(from)) {
     if (l.chat) continue;
     const e = eventLine(l.text);
-    if (e) { evLines.push(e); if (evKey && from > 0) announce(e); }
+    if (!e) continue;
+    if (!fresh) { evLines.push(e); continue; }                       // history on first sync: shown at once, never announced
+    const en = { e, gate: e.gate || 'move' };
+    if (en.gate === 'card') en.ord = ++cardOrd;
+    else if (gateTix[en.gate]) en.need = gateSeq;
+    evPend.push(en);
   }
   if (S.log.length) evKey = keyOf(S.log[S.log.length - 1]);
   evLines = evLines.slice(-EVENT_MAX);
+  evFlush();
+  if (evPend.length && !evPump) evPump = setInterval(evFlush, 100);
+  paintEventLog();
+}
+function paintEventLog() {
+  const box = $('#eventLog');
+  if (!S || S.phase !== 'playing') return;
   const on = sideLogOn();
   const html = on ? evLines.slice().reverse().map((e, k) => `<div class="ev tone-${toneOf(e.icon)}" data-age="${k}"><span class="ev-ic">${ic(e.icon)}</span><span class="ev-tx">${richLine(e.text)}</span></div>`).join('') : '';
   box.hidden = !on || !evLines.length;
   if (box._html !== html) box.innerHTML = box._html = html;
   placeEventLog();
 }
-// ---- centre announcer: each new event as one plaque in the middle of the screen, one at a time
+// ---- announcer: each new event as one plaque, one at a time, top-centre (under the top bar) or bottom-centre (above the action bar)
 const ANN_SKIP = new Set(['card', 'roulette', 'chip', 'cash', 'siren', 'tophat', 'fedora', 'knife', 'bomb', 'confetti', 'whiskey', 'hourglass', 'envelope', 'gun']); // these already get their own pop-up
 const ANN_BIG = new Set(['coins', 'crane', 'skull', 'handcuffs', 'bolt']);
 let annQ = [], annCur = null, annTimer = null, annHold = 0;
@@ -1832,6 +1910,22 @@ const ANN_LEVELS = ['off', 'less', 'normal', 'more'];
 const ANN_ROUTINE = new Set(['dice', 'arrow']);
 function annLevel() { const v = safeGet('mono.annLevel'); return ANN_LEVELS.includes(v) ? v : safeGet('mono.announcer') === '0' ? 'less' : 'normal'; }
 function annOn() { return annLevel() !== 'off'; }
+function annPos() { return safeGet('mono.annPos') === 'top' ? 'top' : 'bottom'; }
+function setAnnPos(v) { safeSet('mono.annPos', v === 'top' ? 'top' : 'bottom'); placeAnnouncer(); syncTools(); }
+// keeps the plaque clear of the top bar / phone player strip (top) or the action bar (bottom); the CSS class also tells the centred windows which edge to leave free
+function placeAnnouncer() {
+  const box = $('#announcer'), pos = annPos();
+  document.body.classList.toggle('ann-top', pos === 'top'); document.body.classList.toggle('ann-bottom', pos === 'bottom');
+  if (pos === 'top') {
+    let y = $('#topbar').getBoundingClientRect().bottom;
+    if (innerWidth <= 760) for (const c of document.querySelectorAll('#hudPlayers .pcard')) y = Math.max(y, c.getBoundingClientRect().bottom);
+    box.style.top = Math.round(y + 8) + 'px'; box.style.bottom = 'auto';
+  } else {
+    const ab = $('#actionBar'), r = ab && ab.offsetHeight ? ab.getBoundingClientRect() : null;
+    box.style.bottom = Math.round(r ? innerHeight - r.top + 10 : 24) + 'px'; box.style.top = 'auto';
+  }
+}
+addEventListener('resize', () => placeAnnouncer());
 function clearAnnouncer() { annQ = []; annCur = null; const b = $('#announcer'); b.classList.remove('show'); b.hidden = true; clearInterval(annTimer); annTimer = null; }
 function announce(e) {
   if (!annOn() || ANN_SKIP.has(e.icon)) return;
@@ -1854,14 +1948,15 @@ function annTick() {
   if (!S || S.phase !== 'playing' || !annOn()) { clearAnnouncer(); return; }
   if (annBusy()) { box.classList.remove('show'); if (annCur) annCur.until += 150; if (annQ.length > 1) annQ = annQ.slice(-1); annHold = Date.now() + slow(500); return; }   // paused: only the newest line survives
   const now = Date.now();
-  if (annCur && now < annCur.until) { box.classList.add('show'); return; }
+  if (annCur && now < annCur.until) { box.classList.add('show'); placeAnnouncer(); return; }
   if (annCur) { box.classList.remove('show'); annCur = null; annHold = now + slow(420); }      // let the plaque fade out before the next one comes in
   if (now < annHold) return;
   const q = annQ.shift();
   if (!q) { box.hidden = true; clearInterval(annTimer); annTimer = null; return; }
   const { e, p, big } = q;
+  placeAnnouncer();
   box.hidden = false;
-  box.style.setProperty('--pc', p ? p.color : '#c9a24f');
+  box.style.setProperty('--pc', p ? p.color : '#c9a24f'); box.style.setProperty('--pt', p ? pcText(p.color) : '#c9a24f');
   box.dataset.tone = toneOf(e.icon);
   box.innerHTML = `<span class="ann-ic">${ic(e.icon)}</span><span class="ann-tx">${richLine(e.text)}</span>`;
   box.classList.remove('show'); void box.offsetWidth; box.classList.add('show');
@@ -2060,4 +2155,5 @@ function showIncomingTrade() {
 
 // Initialize the toolbar after all settings constants (including ANN_LEVELS) exist.
 syncTools();
+placeAnnouncer();
 (view === 'city' ? loadCity().catch(() => { view = 'table'; }) : Promise.resolve()).then(connect);

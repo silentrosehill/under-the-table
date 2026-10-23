@@ -14,8 +14,8 @@ const PORT = process.env.MONOPOLY_DESKTOP ? 0 : Number(process.env.PORT) || 3000
 const ONLINE = process.argv.includes('--online');
 let inviteUrl = null; // public link when --online is used
 const MAX_PLAYERS = 4;
-const TOKENS = ['car', 'hat', 'dog', 'glass'];     // the pieces on offer (the client draws them in tokens.js)
-const OLD_TOKENS = { ship: 'car', rocket: 'car', dino: 'dog', cat: 'dog', crown: 'hat' };     // retired pieces: a player who still holds one gets the nearest, or the next free one
+const TOKENS = ['car', 'hat', 'watch', 'case'];     // the pieces on offer: a 1950s sedan, a fedora, a pocket watch, a briefcase (the client draws them in tokens.js)
+const OLD_TOKENS = { ship: 'car', rocket: 'car', dino: 'watch', cat: 'watch', dog: 'watch', crown: 'hat', glass: 'case' };     // retired pieces: a player who still holds one gets the nearest, or the next free one
 // every player holds one of the current pieces, each different (players carried in from an older game may still hold a retired one)
 function fixTokens(list) {
   list.forEach((p, i) => {
@@ -25,7 +25,17 @@ function fixTokens(list) {
     p.token = (want && !taken(want) ? want : null) || TOKENS.find(t => !taken(t)) || TOKENS[0];
   });
 }
-const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#ff6fb5'];
+const COLORS = ['#7a2626', '#2b4a7a', '#2f5d3a', '#4e2f6b'];     // deep, muted: oxblood, navy, bottle green, aubergine (the client lightens them for text and glows)
+const OLD_COLORS = { '#e74c3c': COLORS[0], '#e67e22': COLORS[0], '#3498db': COLORS[1], '#2ecc71': COLORS[2], '#1abc9c': COLORS[2], '#9b59b6': COLORS[3], '#ff6fb5': COLORS[3] };     // the old bright set: each maps to its nearest deep colour
+// every player holds one of the current colours, each different (players carried in from an older game may still hold a retired one)
+function fixColors(list) {
+  list.forEach((p, i) => {
+    const taken = c => list.some((o, j) => j !== i && o.color === c && (j < i || COLORS.includes(o.color)));
+    if (COLORS.includes(p.color) && !taken(p.color)) return;
+    const want = OLD_COLORS[p.color];
+    p.color = (want && !taken(want) ? want : null) || COLORS.find(c => !taken(c)) || COLORS[0];
+  });
+}
 const GO_SALARY = 200000;
 // Game speed (host setting, lobby only): clients stretch/shrink every animation and hold by this factor; the server paces bots with it.
 const SPEEDS = { relaxed: 1.6, normal: 1, fast: 0.65 };
@@ -56,7 +66,7 @@ function freshGame(players) {
     phase: 'lobby',
     gid: ++gidSeq, boardVer: 0,
     settings: g ? g.settings : { map: 'underworld', startMoney: 2000000, jackpot: false, mode: 'ffa', teamTax: 15, teamRent: 'half', events: true, maxRounds: 50, globalEvery: GLOBAL_EVERY_DEFAULT, mafia: false, speed: 'relaxed' },
-    players: (list => { fixTokens(list); return list; })(players.map(p => ({ ...p, ...playerDefaults() }))),
+    players: (list => { fixTokens(list); fixColors(list); return list; })(players.map(p => ({ ...p, ...playerDefaults() }))),
     hostId: (players.find(p => !p.bot) || players[0] || {}).id || null,
     board: null,
     meta: null,
@@ -120,7 +130,7 @@ const pickOne = arr => arr[crypto.randomInt(arr.length)];
 
 // ---------------------------------------------------------------- teams, events, worth
 
-const TEAMS = [{ name: 'Team Sun', emoji: '☀️', color: '#ffb627' }, { name: 'Team Moon', emoji: '🌙', color: '#7b8cff' }];
+const TEAMS = [{ name: 'Team Sun', emoji: '☀️', color: '#8a5f1a' }, { name: 'Team Moon', emoji: '🌙', color: '#2d6168' }];     // deep amber and deep teal (apart from the four player colours)
 const EMOTES = ['😂', '😎', '😭', '😡', '🔥', '💸', '👏', '🤝', '🙏', '😈', '🤑', '🎉'];
 const isTeams = () => g.settings.mode === 'teams';
 const mateOf = p => (isTeams() ? g.players.find(o => o !== p && o.team === p.team && !o.bankrupt) : null);

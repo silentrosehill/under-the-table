@@ -5,6 +5,7 @@
 
 import { ms as slow, speed } from './speed.js';
 import { ic } from './icons.js';
+import { pcGlow } from './pcolor.js';
 const beat = () => Math.max(0, (speed() - 1) * 500);   // Relaxed leaves a beat between the pieces stopping and the effect starting
 
 const MAJOR = new Set(['jail', 'bribejail', 'drunk', 'audit', 'cashrain', 'taxi', 'loan', 'warning', 'bankrupt']);
@@ -122,7 +123,7 @@ export function createEventFx({ getS, getScene, t, sfx, splitName }) {
       const pos = posOf(m[1]); if (pos != null) later(() => tileFx('evict', { pos }));
     } else if ((m = /^(.+) bought out (.+) from (.+) for /.exec(text))) {
       const pos = posOf(m[2]), b = S().players.find(p => p.name === m[1]);
-      if (pos != null) later(() => { tileFx('buyout', { pos, color: b ? b.color : null }); if (b) panelFx(b.id, 'loss'); const v = S().players.find(p => p.name === m[3]); if (v) panelFx(v.id, 'gain'); });
+      if (pos != null) later(() => { tileFx('buyout', { pos, color: b ? pcGlow(b.color) : null }); if (b) panelFx(b.id, 'loss'); const v = S().players.find(p => p.name === m[3]); if (v) panelFx(v.id, 'gain'); });
     } else if (/ bribed the police — (.+) is hauled off/u.test(text)) {
       const p = playerIn(text.replace(/^.*bribed the police — /u, '')); if (p) later(() => panelFx(p.id, 'bribejail'));
     } else if ((m = /^(.+) was sent to /.exec(text))) {

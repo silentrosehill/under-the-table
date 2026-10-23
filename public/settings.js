@@ -6,7 +6,7 @@
 //
 //   const st = createSettings({ ...host });  st.open(); st.sync();
 //   host: { view(), setView(v), cam(), setCam(m), camOptions(), labelStyle(), setLabelStyle(v), labelsAll(), setLabelsAll(b), isCity(),
-//           quality(), setQuality(q), broadcast(), setBroadcast(b), lang(), setLang(l), ann(), setAnn(l), sideLog(), setSideLog(b),
+//           quality(), setQuality(q), broadcast(), setBroadcast(b), lang(), setLang(l), ann(), setAnn(l), annPos(), setAnnPos(p), sideLog(), setSideLog(b),
 //           hover(), setHover(b), scale(), setScale(pct, commit), sfx, openGuide() }
 
 import { t, lang as curLang, onLang } from './i18n.js';
@@ -55,7 +55,8 @@ export function createSettings(host) {
       ${row('music', 'music', t('Record player'), onOff('music'))}
     </section>
     <section class="st-sec" data-sec="info">
-      ${row('ann', 'megaphone', t('Announcer'), seg('ann', [{ v: 'off', label: t('Off') }, { v: 'less', label: t('Less') }, { v: 'normal', label: t('Normal') }, { v: 'more', label: t('More') }]), t('What the plaque in the middle of the screen says: Less is money, property, jail and bankruptcy; More is every move.'), 'stack')}
+      ${row('ann', 'megaphone', t('Announcer'), seg('ann', [{ v: 'off', label: t('Off') }, { v: 'less', label: t('Less') }, { v: 'normal', label: t('Normal') }, { v: 'more', label: t('More') }]), t('What the announcer plaque says: Less is money, property, jail and bankruptcy; More is every move.'), 'stack')}
+      ${row('annPos', 'megaphone', t('Announcer position'), seg('annPos', [{ v: 'top', label: t('Top') }, { v: 'bottom', label: t('Bottom') }]), t('Where the plaque sits: under the top bar, or above the action bar.'))}
       ${row('sideLog', 'log', t('Side event log'), onOff('sideLog'), t('The last few events, down the left edge.'))}
       ${row('hover', 'eye', t('Hover bubbles'), onOff('hover'), t('A small card over any square you rest the mouse on.'))}
     </section>
@@ -70,7 +71,7 @@ export function createSettings(host) {
   // ---- state -> controls
   const val = {
     view: () => host.view(), cam: () => host.cam(), labelStyle: () => host.labelStyle(), labelsAll: () => (host.labelsAll() ? '1' : '0'),
-    quality: () => host.quality(), broadcast: () => (host.broadcast() ? '1' : '0'), lang: () => host.lang(), ann: () => host.ann(),
+    quality: () => host.quality(), broadcast: () => (host.broadcast() ? '1' : '0'), lang: () => host.lang(), ann: () => host.ann(), annPos: () => host.annPos(),
     sideLog: () => (host.sideLog() ? '1' : '0'), hover: () => (host.hover() ? '1' : '0'),
     mute: () => (host.sfx.muted ? '1' : '0'), music: () => (host.sfx.music ? '1' : '0'),
   };
@@ -112,6 +113,7 @@ export function createSettings(host) {
       case 'broadcast': host.setBroadcast(v === '1'); break;
       case 'lang': host.setLang(v); break;
       case 'ann': host.setAnn(v); break;
+      case 'annPos': host.setAnnPos(v); break;
       case 'sideLog': host.setSideLog(v === '1'); break;
       case 'hover': host.setHover(v === '1'); break;
       case 'mute': if (host.sfx.muted !== (v === '1')) host.sfx.toggle(); break;

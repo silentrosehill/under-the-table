@@ -8,7 +8,8 @@ import { createPost } from './post.js';
 import { disposeScene } from './dispose.js';
 import { createRoom } from './room.js';
 import { createProps, viewYaw } from './props.js';
-import { makePewterToken, setTokenEnvironment, createNameTag, TOKEN_TAG_Y } from './tokens.js';
+import { makePewterToken, setTokenEnvironment, createNameTag, paintToken, tokenGlow, TOKEN_TAG_Y } from './tokens.js';
+import { pcGlow } from './pcolor.js';
 import { fitTopDown, squarePoints } from './topdown.js';
 import { createDice } from './dice.js';
 import { createHoverCard, hoverData } from './hovercard.js';
@@ -75,7 +76,8 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   const TABLE_Y = -BOARD_T - 0.003;
   const room = createRoom(scene, renderer, { tableY: TABLE_Y });
   const post = createPost(renderer, scene, camera, { onShadowSize: size => room.setShadowSize(size) });
-  room.envReady.then(setTokenEnvironment);
+  setTokenEnvironment(null, renderer);
+  room.envReady.then(tex => setTokenEnvironment(tex, renderer));
   const baseExpo = renderer.toneMappingExposure;       // Top-down lifts it a little so the far rows stay readable
   let props = null;   // the clutter around the board (props.js); waits for its printed fonts
   Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f)))
@@ -238,7 +240,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     const body = new THREE.Group();     // squash & stretch happens here
     const { group: piece, ground, enamel, felt, hit } = makePewterToken(p.token, p.color);
     body.add(piece);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.64, 48), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.64, 48), new THREE.MeshBasicMaterial({ color: pcGlow(p.color), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.014;
     group.add(body, ground, ring);
     group.scale.setScalar(TOKEN_S);
@@ -691,6 +693,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     resetView,
     select(i) { selected = i; },
     debugView(px, py, pz, tx = 0, ty = 0, tz = 0) { userUntil = performance.now() + 3600e3; camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); controls.update(); },   // (test harness)
+    tokenWorld: pid => tokens.get(pid).group.position.toArray(),      // (test harness)
     tokenScreen(pid) {                                                 // where a piece is on the page (test harness)
       const t = tokens.get(pid), r = renderer.domElement.getBoundingClientRect(), v = t.group.position.clone().setY(t.group.position.y + 0.4 * TOKEN_S).project(camera);
       return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
@@ -779,7 +782,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       const gains = new Map(S.players.map(o => [o.id, o.money - (lastMoney[o.id] ?? o.money)]));
       for (const p of S.players) {
         const t = tokens.get(p.id);
-        t.name = p.name; t.color = p.color; t.baseMat.color.set(p.color); t.baseMat.emissive.set(p.color); t.felt.color.set(teamsMode && S.teams ? S.teams[p.team].color : p.color); t.ring.material.color.set(p.color);
+        t.name = p.name; t.color = p.color; paintToken(t.baseMat, p.color); tokenGlow(t.felt, teamsMode && S.teams ? S.teams[p.team].color : p.color); t.ring.material.color.set(pcGlow(p.color));
         if (p.bankrupt && !t.out) {
           t.out = true;
           const where = (props && props.seatPosition(p.id)) || t.group.position.clone();

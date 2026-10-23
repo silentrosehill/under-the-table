@@ -94,7 +94,7 @@ body[data-theme] #roundChip:empty { display: none; }
 #roundChip .rc-global { display: inline-flex; align-items: center; gap: 5px; padding-left: 10px; border-left: 1px solid var(--h-line2); color: var(--h-brass2); }
 body[data-theme] #turnBanner {
   position: static; transform: none; z-index: auto; display: flex; align-items: center; gap: 10px; padding: 4px 16px 4px 5px; max-width: 360px;
-  background: var(--h-bg); color: var(--h-text); border: 1px solid var(--pc); border-radius: var(--h-r); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 0 16px -4px var(--pc), var(--h-sh);
+  background: var(--h-bg); color: var(--h-text); border: 1px solid var(--pt, var(--pc)); border-radius: var(--h-r); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 0 16px -4px var(--pt, var(--pc)), var(--h-sh);
   font: 600 calc(var(--ui) * 13px) var(--head); letter-spacing: .18em; text-transform: uppercase; white-space: nowrap;
 }
 body[data-theme] #turnBanner.pop { animation: bannerPop3 var(--h-d) cubic-bezier(.2, .9, .3, 1); }
@@ -102,12 +102,14 @@ body[data-theme] #turnBanner.pop { animation: bannerPop3 var(--h-d) cubic-bezier
 body[data-theme] #turnBanner .token-badge { width: 28px; height: 28px; }
 
 /* token badges: the player's enamel ring around a line-icon piece */
-body[data-theme] .token-badge { width: 32px; height: 32px; background: #1b1511; border: 2px solid var(--pc); box-shadow: 0 1px 4px rgba(0, 0, 0, .6); color: var(--h-text); display: inline-grid; place-items: center; }
+body[data-theme] .token-badge { width: 32px; height: 32px; background: #1b1511; border: 2px solid var(--pt, var(--pc)); box-shadow: 0 1px 4px rgba(0, 0, 0, .6); color: var(--h-text); display: inline-grid; place-items: center; }
 body[data-theme] .token-badge i { display: grid; place-items: center; font-style: normal; filter: none; }
 body[data-theme] .token-badge .ic { width: 62%; height: 62%; }
 body[data-theme] .pick:not(.swatch) { filter: none; color: var(--h-text); background: var(--h-bg2); border: 1px solid var(--h-line2); border-radius: var(--h-r); display: grid; place-items: center; }
 body[data-theme] .pick:not(.swatch) .ic { width: 26px; height: 26px; }
 body[data-theme] .pick:not(.swatch):hover:not(:disabled) { border-color: var(--h-brass); }
+body[data-theme] .pick.swatch { border: 2px solid var(--pt); }
+body[data-theme] .pick.swatch.taken { opacity: .45; }
 body[data-theme] .pick.sel { outline: 2px solid var(--h-brass); outline-offset: 2px; background: var(--h-bg3); }
 
 /* ---------------------------------------------------------------- player panels (corner HUD) */
@@ -125,7 +127,7 @@ body[data-theme] #hudPlayers .pcard.turn {
 }
 body[data-theme] #hudPlayers .pcard.out { opacity: .55; filter: grayscale(.8); }
 body[data-theme] #hudPlayers .pname { font: 500 calc(var(--ui) * 17px) var(--font); color: var(--h-text); gap: 6px; }
-body[data-theme] #hudPlayers .pc-head .token-badge { box-shadow: 0 0 0 2px #0e0b09, 0 0 0 3px var(--pc), 0 2px 6px rgba(0, 0, 0, .6); border-color: #1b1511; }
+body[data-theme] #hudPlayers .pc-head .token-badge { box-shadow: 0 0 0 2px #0e0b09, 0 0 0 3px var(--pt, var(--pc)), 0 2px 6px rgba(0, 0, 0, .6); border-color: #1b1511; }
 body[data-theme] #hudPlayers .you { font: 500 calc(var(--ui) * 10px) var(--head); letter-spacing: .14em; border: 1px solid var(--h-line2); border-radius: 3px; padding: 1px 5px; color: var(--h-mute); background: var(--h-bg2); }
 body[data-theme] #hudPlayers .you.team { color: var(--tc); border-color: var(--tc); }
 body[data-theme] #hudPlayers .dot { width: 8px; height: 8px; background: #8cc27a; box-shadow: 0 0 6px rgba(140, 194, 122, .6); }
@@ -195,17 +197,23 @@ body[data-theme] #eventLog .ev:first-child { animation: evIn2 calc(.5s * var(--s
 #eventLog .ev .ev-tx { overflow-wrap: anywhere; }
 
 body[data-theme] #announcer {
-  top: 31%; gap: 14px; padding: 11px 24px 11px 11px; background: var(--h-bg); border: 1px solid var(--h-line); border-left: 5px solid var(--pc, var(--h-brass)); border-radius: var(--h-r2);
-  box-shadow: var(--h-sh), 0 0 40px -12px var(--pc, var(--h-brass)); font: 400 calc(var(--ui) * 23px) / 1.3 var(--font); color: var(--h-text); text-shadow: none;
-  opacity: 0; transition: opacity calc(.45s * var(--spd, 1)) ease; transform: translate(-50%, -50%); animation: none; max-width: min(88vw, 820px);
+  top: auto; bottom: 24px; gap: 14px; padding: 9px 22px 9px 9px; background: var(--h-bg); border: 1px solid var(--h-line); border-left: 5px solid var(--pc, var(--h-brass)); border-radius: var(--h-r2);
+  box-shadow: var(--h-sh), 0 0 40px -12px var(--pt, var(--pc, var(--h-brass))); font: 400 calc(var(--ui) * 21px) / 1.3 var(--font); color: var(--h-text); text-shadow: none;
+  opacity: 0; transition: opacity calc(.45s * var(--spd, 1)) ease; transform: translateX(-50%); animation: none; z-index: 8;
+  max-width: min(calc(100vw - 2 * (var(--pw, 264px) + 28px)), 820px); box-sizing: border-box;
 }
-body[data-theme] #announcer.show { opacity: 1; animation: annIn2 calc(.55s * var(--spd, 1)) cubic-bezier(.2, .8, .2, 1) both; }
-@keyframes annIn2 { from { opacity: 0; transform: translate(-50%, -38%); } to { opacity: 1; transform: translate(-50%, -50%); } }
-body[data-theme] #announcer .ann-ic { width: 46px; height: 46px; border-radius: 8px; }
-body[data-theme] #announcer .ann-ic .ic { width: 27px; height: 27px; }
+body[data-theme] #announcer.show { opacity: 1; animation: annInB calc(.55s * var(--spd, 1)) cubic-bezier(.2, .8, .2, 1) both; }
+body[data-theme].ann-top #announcer.show { animation-name: annInT; }
+@keyframes annInB { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes annInT { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+body[data-theme] #announcer .ann-ic { width: 42px; height: 42px; border-radius: 8px; }
+body[data-theme] #announcer .ann-ic .ic { width: 25px; height: 25px; }
 #announcer .ann-tx { min-width: 0; }
 #announcer .who { font-weight: 700; }
-@media (max-width: 700px) { body[data-theme] #announcer { font-size: calc(var(--ui) * 17px); padding-right: 16px; } body[data-theme] #announcer .ann-ic { width: 38px; height: 38px; } }
+/* tile names: bold cream, a tick and a thin underline in the district colour (brass for stations, utilities and special squares) */
+.tilename { font-weight: 700; color: #fbf3de; padding-left: .38em; margin-left: .06em; border-left: 3px solid var(--tc, var(--h-brass)); text-decoration: underline; text-decoration-color: var(--tc, var(--h-brass)); text-decoration-thickness: 1px; text-underline-offset: .2em; }
+@media (max-width: 1100px) { body[data-theme] #announcer { max-width: min(calc(100vw - 2 * (var(--pw, 232px) + 20px)), 820px); } }
+@media (max-width: 760px) { body[data-theme] #announcer { max-width: calc(100vw - 16px); font-size: calc(var(--ui) * 16px); padding: 7px 14px 7px 7px; gap: 10px; } body[data-theme] #announcer .ann-ic { width: 34px; height: 34px; } body[data-theme] #announcer .ann-ic .ic { width: 20px; height: 20px; } }
 
 /* ---------------------------------------------------------------- pop-ups: casino verdict, global event, drawn card, play banner */
 body[data-theme] .casino-card {
@@ -512,7 +520,6 @@ body[data-theme] .tag.bot { background: var(--h-bg3); }
   body[data-theme] #drawer { top: 112px; }
   body[data-theme] #emoteTray { top: 50px; bottom: auto; right: 8px; }
   body[data-theme] #actionBar { padding: 10px 12px 12px; }
-  body[data-theme] #announcer { top: 38%; }
 }
 @media (max-width: 1100px) and (min-width: 761px) {
   body[data-theme] .brand small { display: none; }
@@ -547,3 +554,16 @@ body[data-theme] #drawer, body[data-theme] #emoteTray { top: 66px; }
   body[data-theme] #roundChip .rc-global { padding-left: 6px; }
 }
 @media (max-width: 760px) { body[data-theme] #turnBanner { display: none; } }
+
+/* ---------------------------------------------------------------- windows I interact with: always in the middle, in both views
+   (the announcer keeps to the top or the bottom edge, so a centred card leaves that edge free; other players' cards stay small, at the side) */
+@media (min-width: 761px) {
+  body[data-theme]:not(.turncard-centre) #turnCard { left: auto; right: calc(var(--pw, 264px) + 36px); top: 54%; transform: translateY(-50%); width: min(340px, 30vw); animation-name: turnCardInSide; }
+  body[data-theme]:not(.turncard-centre) #turnCard .tc-photo { height: 64px; }
+}
+body[data-theme].turncard-centre #turnCard { left: 50%; right: auto; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 260px); z-index: 9; animation-name: turnCardIn; }
+body[data-theme].turncard-centre.ann-top #turnCard { top: calc(50% + 34px); }
+body[data-theme].turncard-centre.ann-bottom #turnCard { top: calc(50% - 30px); }
+body[data-theme].turncard-compact #turnCard .tc-photo { display: none; }
+body[data-theme] #cardPick { left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); max-height: calc(100vh - 160px); z-index: 9; }
+body[data-theme].turncard-centre:not(.turncard-compact) #turnCard .tc-photo { display: block; }

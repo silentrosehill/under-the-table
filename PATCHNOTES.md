@@ -5,6 +5,30 @@ Schema: [{ version, date (YYYY-MM-DD), title, highlights: string[],
 changes: { added: string[], changed: string[], fixed: string[] } }], newest first.
 Keep this file and the JSON in sync. -->
 
+## 1.2.0 · Noir pieces (2026-10-23)
+
+- New die-cast pewter pieces: 1950s sedan, fedora, pocket watch and briefcase.
+- Deep, muted player colours: dark red, blue, green and purple.
+- The announcer waits until things actually happen, and tile names stand out.
+
+### Added
+
+- Announcer position setting (Top or Bottom) in Settings → Info.
+- Tile names are highlighted in the announcer and the event log, in their district's colour.
+
+### Changed
+
+- Tokens replaced with noir die-cast metal pieces with a coloured enamel detail.
+- Player colours are now deep dark red, blue, green and purple; names use a lighter tint so they stay readable.
+- Team colours toned down to match.
+- Announcer and event log lines only appear once what they describe is visible: after the token arrives, the card flips or the wheel stops.
+- Every window you interact with (prompts, pickers) now opens in the centre of the screen.
+- The GitHub repository is now silentrosehill/under-the-table; the app checks for updates there.
+
+### Fixed
+
+- Results no longer show in the announcer or log before the card or wheel reveals them.
+
 ## 1.1.0 · Under The Table (2026-10-23)
 
 - The game is now called Under The Table.
