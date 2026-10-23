@@ -1,6 +1,6 @@
 # 🎲 Under The Table
 
-Desktop apps for **macOS Apple Silicon** and **Windows x64** are available on the [Releases page](https://github.com/silentrosehill/monopoly-party/releases). Extract the download and open the app; no Node.js installation is needed. The first launch on macOS (right-click → Open) and Windows (More info → Run anyway) needs one extra click; see the [Desktop guide](DESKTOP.md). The app can check for new versions itself. See also [Patch notes](PATCHNOTES.md) and [Privacy and hosting](PRIVACY.md).
+Desktop apps for **macOS Apple Silicon** and **Windows x64** are available on the [Releases page](https://github.com/silentrosehill/under-the-table/releases). Extract the download and open the app; no Node.js installation is needed. The first launch on macOS (right-click → Open) and Windows (More info → Run anyway) needs one extra click; see the [Desktop guide](DESKTOP.md). The app can check for new versions itself. See also [Patch notes](PATCHNOTES.md) and [Privacy and hosting](PRIVACY.md).
 
 Under The Table is a Monopoly-style property game in the browser for 2–4 friends. One person hosts it on their computer, and everyone else plays from a browser, either from their own home or on the same Wi‑Fi.
 
@@ -30,7 +30,7 @@ brew install cloudflared
 To host a game:
 
 ```bash
-cd ~/Desktop/monopoly-party
+cd ~/Documents/monopoly-party   # or wherever you cloned it
 node server.js --online
 ```
 

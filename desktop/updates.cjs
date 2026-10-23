@@ -1,8 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { app, net, shell } = require('electron');
-const API = 'https://api.github.com/repos/silentrosehill/monopoly-party/releases/latest';
-const RELEASE_PREFIX = 'https://github.com/silentrosehill/monopoly-party/';
+const API = 'https://api.github.com/repos/silentrosehill/under-the-table/releases/latest';
+const RELEASE_PREFIX = 'https://github.com/silentrosehill/under-the-table/';
 const DAY = 24 * 60 * 60 * 1000;
 const cacheFile = () => path.join(app.getPath('userData'), 'update-check.json');
 let releaseUrl = null;
