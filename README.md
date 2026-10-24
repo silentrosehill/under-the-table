@@ -10,6 +10,8 @@ Under The Table is a Monopoly-style property game in the browser for 2–4 frien
 |---|---|
 | ![City Mode mid-game](docs/media/hud-v2-game.jpg) | ![Top-down camera](docs/media/camera-topdown-city.jpg) |
 | City Mode: the noir model city, one building per level | Top-down camera |
+| ![Daylight, City Mode](docs/media/day-city.jpg) | ![Daylight, Table Mode](docs/media/day-table.jpg) |
+| Daylight lighting (Settings → Display) | Daylight in Table Mode |
 | ![Casino wheel](docs/media/hud-v2-wheel.jpg) | ![Building bombing](docs/media/fx-bombing.jpg) |
 | The casino wheel | Events play out on the board |
 | ![Settings](docs/media/hud-v2-settings.jpg) | ![Lobby](docs/media/hud-v2-lobby.jpg) |
