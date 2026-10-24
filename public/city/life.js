@@ -46,6 +46,7 @@ export function createLife(parent, { lights = 4 } = {}) {
     puffs.push({ s, t: 0, life: haze ? 5 : steam ? 2.6 : 3.4, steam, haze, drift: new THREE.Vector3(0.025 + Math.random() * 0.02, haze ? 0.06 : steam ? 0.12 : 0.16, Math.random() * 0.02 - 0.01) });
   }
 
+  let dayK = 0;                                          // 0 night … 1 day: windows, lamps and pools dim, signs stay subtly lit
   const tmp = new THREE.Vector3();
   let last = performance.now();
   function update(time) {
@@ -60,14 +61,14 @@ export function createLife(parent, { lights = 4 } = {}) {
         const on = st.awake > w.at * 0.85 + 0.05 ? 1 : 0;
         const target = Math.max(w.calm, on * (0.9 + 0.1 * Math.sin(time * 0.7 + w.at * 9)));
         w.level += (target - w.level) * Math.min(1, dt * 2.5);
-        for (const m of w.mats) m.emissiveIntensity = w.level * 1.1;
+        for (const m of w.mats) m.emissiveIntensity = w.level * 1.1 * (1 - 0.92 * dayK);
       }
-      for (const lamp of st.lamps) lamp.material.emissiveIntensity = 1.2 + st.awake * 3.5;
+      for (const lamp of st.lamps) lamp.material.emissiveIntensity = (1.2 + st.awake * 3.5) * (1 - 0.88 * dayK);
       // signs flicker on: a few stutters, then steady (with the odd blink)
       for (const sg of [...st.signs, ...st.growthSigns]) {
         const flick = st.awake > 0.15 ? (Math.sin(time * 37 + sg.userData.id) > 0.92 - st.awake * 0.9 ? 1 : 0.25) : 0;
         const blink = Math.sin(time * 1.3 + sg.userData.id) > 0.985 ? 0.4 : 1;
-        sg.material.emissiveIntensity = (sg.userData.calm || 0) + st.awake * flick * blink * 2.4;
+        sg.material.emissiveIntensity = ((sg.userData.calm || 0) + st.awake * flick * blink * 2.4) * (1 - 0.7 * dayK);
       }
       if (st.haze.length) {
         st.hazeClock -= dt;
@@ -96,7 +97,7 @@ export function createLife(parent, { lights = 4 } = {}) {
       const l = pool[k++];
       lamp.getWorldPosition(l.position);
       parent.worldToLocal(l.position);
-      l.intensity = st.awake * 1.6;
+      l.intensity = st.awake * 1.6 * (1 - dayK);
     }
     for (; k < pool.length; k++) pool[k].intensity = 0;
     for (let n = puffs.length - 1; n >= 0; n--) {
@@ -110,6 +111,7 @@ export function createLife(parent, { lights = 4 } = {}) {
   }
 
   return {
+    setDay(k) { dayK = k; },
     add, setChimneys, setHaze, setGrowthSigns, setWindows, wake, update,
     awake: i => (squares.get(i) ? squares.get(i).awake : 0),
     clear() { squares.clear(); },

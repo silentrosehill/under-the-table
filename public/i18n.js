@@ -304,6 +304,7 @@ for (const [k, v] of Object.entries({
   'Table: the back-room board. City: the miniature noir city.': 'Table : le plateau de l’arrière-salle. Ville : la ville miniature en noir et blanc.',
   'Sign density': 'Densité des enseignes', 'Quiet': 'Discret', 'All': 'Tout', 'Show every street label, or only the busy ones.': 'Afficher toutes les étiquettes, ou seulement les plus utiles.',
   'Auto': 'Auto', 'High': 'Élevé', 'Medium': 'Moyen', 'Low': 'Bas', 'Lower it if the game stutters.': 'Baisse-le si le jeu saccade.',
+  'Lighting': 'Éclairage', 'Night': 'Nuit', 'Day': 'Jour', 'Night: the hanging bulb. Day: sunlight through the window.': 'Nuit : l’ampoule suspendue. Jour : le soleil par la fenêtre.',
   'Broadcast look': 'Look télévision', '1960s black-and-white broadcast, with scanlines.': 'Télévision noir et blanc des années 60, avec lignes de balayage.',
   'On': 'Oui', 'Off': 'Non', 'Reset': 'Réinitialiser', 'Mute everything': 'Tout couper', 'Record player': 'Tourne-disque', 'The background record player.': 'Le tourne-disque en fond sonore.',
   'Announcer': 'Annonceur', 'Less': 'Moins', 'More': 'Plus', 

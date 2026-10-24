@@ -13,6 +13,7 @@ import { initInfo, infoAttr, tipAttr, openGuide, closeGuide, guideOpen } from '.
 import { pcText } from './pcolor.js';
 import { ic, emo, deEmoji, keyOfEmoji, TOKEN_ICON, TONE, stripEmoji } from './icons.js';
 import { createSettings } from './settings.js';
+import { lighting } from './lighting.js';
 
 const TOKEN_EMOJI = { car: '🚗', hat: '🎩', watch: '⌚', case: '💼', dog: '⌚', glass: '💼', ship: '🚗', dino: '⌚', rocket: '🚗', cat: '⌚', crown: '🎩' };   // (the last six are retired pieces, shown as the one they became)
 const TOKEN_NAME = { car: 'Sedan', hat: 'Fedora', watch: 'Pocket watch', case: 'Briefcase' };
@@ -1053,7 +1054,7 @@ const settings = createSettings({
   view: () => view, setView: v => setView(v),
   cam: () => camMode(), setCam: m => setCamMode(m, false), camOptions,
   isCity: () => view === 'city', labelStyle, setLabelStyle, labelsAll, setLabelsAll,
-  quality, setQuality, broadcast: broadcastOn, setBroadcast,
+  quality, setQuality, broadcast: broadcastOn, setBroadcast, lighting: () => lighting.mode, setLighting: m => { lighting.set(m); syncTools(); },
   lang: () => lang, setLang: l => { setLang(l); labelTools(); syncTools(); if (S) render(); },
   annPos, setAnnPos, ann: annLevel, setAnn: v => { safeSet('mono.annLevel', v); if (v === 'off') clearAnnouncer(); syncTools(); },
   sideLog: sideLogOn, setSideLog: on => { safeSet('mono.sideLog', on ? '1' : '0'); if (S) renderEventLog(); syncTools(); },

@@ -1400,7 +1400,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
 
   // ------------------------------------------------------------ main loop
   const clock = new THREE.Clock();
-  let lastFrame = performance.now();
+  let lastFrame = performance.now(), roadK = 0;
   const tmp = new THREE.Vector3(), head = new THREE.Vector3();
   const RIM_TARGET = new THREE.Color('#ffe08a'), RIM_IDLE = new THREE.Color('#ffb46a');
   const restCount = new Map(), slots = new Map(), occupied = new Set();      // reused every frame (no per-frame allocations)
@@ -1411,7 +1411,8 @@ export function createCityScene(container, { onTileClick, onCard }) {
     lastFrame = now;
     room.update(time);
     room.setDetail(post.tier);
-    renderer.toneMappingExposure += (baseExpo * (camMode === 'topdown' ? 1.6 : 1) - renderer.toneMappingExposure) * 0.08;
+    const dayK = room.dayK; post.setDay(dayK);
+    renderer.toneMappingExposure += (baseExpo * (camMode === 'topdown' ? 1.6 : 1) * (1 + (room.dayExposure * 1.3 - 1) * dayK) - renderer.toneMappingExposure) * 0.08;
     dice.update(now);
     if (props) { props.setDetail(post.tier); props.update(time, room.bulbWorld); }
     for (let k = tweens.length - 1; k >= 0; k--) {
@@ -1488,7 +1489,9 @@ export function createCityScene(container, { onTileClick, onCard }) {
       if (tile.casino) tile.casino.update(time, dt / 1000, life.awake(tile.i));
       if (tile.fx) tileFx.update(tile, time, dt / 1000);
     }
-    for (const b of squareLamps) b.material.emissiveIntensity = 1.6;
+    for (const b of squareLamps) b.material.emissiveIntensity = 1.6 * (1 - 0.88 * dayK);
+    life.setDay(dayK);
+    if (dayK !== roadK || (dayK > 0 && Math.round(time * 2) % 8 === 0)) { roadK = dayK; for (const key in mats) if (key.startsWith('road-')) { const m = mats[key]; m.roughness = 0.32 + 0.4 * dayK; m.clearcoat = 0.6 * (1 - 0.75 * dayK); } }     // the wet streets dry out in the sun
     life.update(time);
     updateFade(dt, now);
     if (pendingFx.length && allIdle()) { const list = pendingFx; pendingFx = []; while (list.length) { list.shift()(); if (!allIdle()) { pendingFx = list.concat(pendingFx); break; } } }

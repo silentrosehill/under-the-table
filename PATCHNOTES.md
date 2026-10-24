@@ -5,6 +5,20 @@ Schema: [{ version, date (YYYY-MM-DD), title, highlights: string[],
 changes: { added: string[], changed: string[], fixed: string[] } }], newest first.
 Keep this file and the JSON in sync. -->
 
+## 1.3.0 · Daylight (2026-10-25)
+
+- New Lighting setting: play by night or on a sunny afternoon.
+
+### Added
+
+- Lighting: Night / Day in Settings → Display. Day lets sunlight in through a window: the frame's shadow falls across the table, with light shafts and floating dust.
+- In City Mode by day, lit windows, street lamps and neon fade down and the streets dry.
+- Daytime ambience: the rain gives way to a soft street murmur.
+
+### Changed
+
+- Colour grading adapts to the time of day (warmer, brighter whites by day).
+
 ## 1.2.0 · Noir pieces (2026-10-23)
 
 - New die-cast pewter pieces: 1950s sedan, fedora, pocket watch and briefcase.

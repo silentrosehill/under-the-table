@@ -25,6 +25,7 @@ const GradeShader = {
     time: { value: 0 },
     aspect: { value: 1.6 },
     broadcast: { value: 0 },                                   // 0 colour … 1 the 1960s broadcast look
+    lift: { value: 0 },                                        // lifted blacks (Day)
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -32,7 +33,7 @@ const GradeShader = {
   fragmentShader: /* glsl */`
     uniform sampler2D tDiffuse;
     uniform vec3 tint, shadowTint;
-    uniform float saturation, contrast, vignette, grain, time, aspect, broadcast;
+    uniform float saturation, contrast, vignette, grain, time, aspect, broadcast, lift;
     varying vec2 vUv;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
@@ -42,6 +43,7 @@ const GradeShader = {
       col *= mix(shadowTint, tint, smoothstep(0.02, 0.6, l));        // split-tone: cool shadows, warm light
       col = mix(vec3(l), col, saturation);
       col = max(vec3(0.0), (col - 0.18) * contrast + 0.18);
+      col += lift * (1.0 - smoothstep(0.0, 0.5, l)) * vec3(1.0, 0.97, 0.92);
       vec2 d = (vUv - 0.5) * vec2(aspect, 1.0);
       col *= 1.0 - vignette * smoothstep(0.25, 1.05, length(d));
       float n = hash(vUv * 1000.0 + fract(time) * 100.0) - 0.5;      // film grain, stronger in mid-tones
@@ -186,12 +188,16 @@ export function createPost(renderer, scene, camera, { onShadowSize, look = {} } 
   const tiltAmount = look.tiltAmount ?? 1.6;
   const grade = new ShaderPass(GradeShader);
   for (const [k, v] of Object.entries(look.grade || {})) { const u = grade.uniforms[k]; if (u.value && u.value.set) u.value.set(...v); else u.value = v; }
+  const gu = grade.uniforms, baseGrade = { tint: gu.tint.value.clone(), shadowTint: gu.shadowTint.value.clone(), saturation: gu.saturation.value, contrast: gu.contrast.value, vignette: gu.vignette.value, grain: gu.grain.value };
+  const baseBloom = bloom.strength;
+  const dayTint = new THREE.Vector3(1.03, 1.0, 0.95), dayShadow = new THREE.Vector3(0.97, 0.985, 1.03);
   const smaa = new SMAAPass(1, 1);
   for (const p of [new RenderPass(scene, camera), ao, bloom, bokeh, tiltH, tiltV, grade, new OutputPass(), smaa]) composer.addPass(p);
 
   renderer.capabilities.maxSamples = 0;       // three's refraction buffer is 4x multisampled by default; it is only ever blurred, so plain is identical
   renderer.shadowMap.autoUpdate = false;     // redrawn on demand (see shadowSignature)
   let shadowSig = NaN, shadowAt = 0, shadowDirty = true;
+  let dayK = 0;
   let mode = savedQuality();
   const mobile = matchMedia('(pointer: coarse)').matches || innerWidth < 760;
   let tier = mode !== 'auto' ? mode : mobile ? 'medium' : 'high';
@@ -259,6 +265,19 @@ export function createPost(renderer, scene, camera, { onShadowSize, look = {} } 
       composer.render();
     },
     setFocus(distance) { bokeh.uniforms.focus.value = distance; },
+    // Day (k 0…1): neutral-warm whites, lifted shadows, a light vignette and grain, softer bloom
+    setDay(k) {
+      if (k === dayK) return;
+      dayK = k;
+      gu.tint.value.copy(baseGrade.tint).lerp(dayTint, k);
+      gu.shadowTint.value.copy(baseGrade.shadowTint).lerp(dayShadow, k);
+      gu.saturation.value = baseGrade.saturation * (1 + 0.1 * k);
+      gu.contrast.value = baseGrade.contrast + (1.0 - baseGrade.contrast) * k;
+      gu.vignette.value = baseGrade.vignette * (1 - 0.65 * k);
+      gu.grain.value = baseGrade.grain * (1 - 0.5 * k);
+      gu.lift.value = 0.006 * k;
+      bloom.strength = baseBloom * (1 - 0.45 * k);
+    },
     setBroadcast(on) { grade.uniforms.broadcast.value = on ? 1 : 0; },
     setQuality(next) {
       mode = QUALITY[next] ? next : 'auto';

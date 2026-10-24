@@ -3,6 +3,7 @@
 // samples (public/assets/sfx/, all CC0 / public domain / CC-BY, see CREDITS.md) with random variants, and the old
 // synthesized version of every sound as the fallback while a sample loads or if it fails. Buttons tick like
 // typewriter keys. Nothing plays until the first click or key press (browsers require a gesture).
+import { lighting } from './lighting.js';
 const pref = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v === '1'; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch {} };
 let muted = pref('mono.muted', false), musicOn = pref('mono.music', true);
@@ -201,7 +202,14 @@ function tick() {
     hiss(now, { type: 'lowpass', freq: 220, freqTo: 600, q: 0.5, vol: 0.05, attack: 2.2, dur: 2.8, dest: roomBus });
   }
   schedule();
-  if (sceneKind === 'city') { if (!nextSiren) nextSiren = now + rand(25, 60); if (now > nextSiren) { nextSiren = now + rand(60, 140); siren(now); } }
+  if (cityBus && rainGain) {                                                  // Day / Night: the rain gives way to the daytime street
+    const day = lighting.mode === 'day';
+    if (day !== dayShown) { dayShown = day; rainGain.gain.setTargetAtTime(day ? 0 : 0.006, now, 0.8); dayAmb.gain.setTargetAtTime(day ? 1 : 0, now, 0.8); }
+    if (day && sceneKind === 'city') {
+      if (now > nextBird) { nextBird = now + rand(6, 16); const f = rand(2800, 4200); for (let k = 0; k < 3; k++) ping(now + k * 0.13, f * (1 + k * 0.06), { vol: 0.004, dur: 0.1, dest: cityBus }); }
+    }
+  }
+  if (sceneKind === 'city' && lighting.mode !== 'day') { if (!nextSiren) nextSiren = now + rand(25, 60); if (now > nextSiren) { nextSiren = now + rand(60, 140); siren(now); } }
 }
 
 // ------------------------------------------------------------------ the record: slow minor jazz trio
@@ -301,12 +309,17 @@ function schedule() {
 // City Mode sits in the same back room, so the room tone, the bulb and the record carry on. On top:
 // rain on the city, traffic far off, now and then a siren, and the square under the mouse adds its own
 // quiet layer: a radio behind a window, water at the docks, steam at the station, machinery at the works.
-let sceneKind = 'table', cityBus = null, places = {}, placeKind = null, nextSiren = 0;
+let sceneKind = 'table', cityBus = null, rainGain = null, dayAmb = null, dayShown = null, nextBird = 0, places = {}, placeKind = null, nextSiren = 0;
 function startCity() {
   cityBus = gain(0);
   cityBus.connect(master);
   loop(brown, biquad('lowpass', 380)).connect(gain(0.014)).connect(cityBus);                       // traffic, far off
-  loop(noiseBuf, biquad('highpass', 2500)).connect(biquad('lowpass', 8000)).connect(gain(0.006)).connect(cityBus);   // rain
+  rainGain = gain(0.006);
+  loop(noiseBuf, biquad('highpass', 2500)).connect(biquad('lowpass', 8000)).connect(rainGain).connect(cityBus);   // rain
+  dayAmb = gain(0);                                                                                // by day: a soft murmur of the street instead of the rain
+  dayAmb.connect(cityBus);
+  loop(brown, biquad('bandpass', 700, 0.5)).connect(gain(0.02)).connect(dayAmb);
+  loop(noiseBuf, biquad('bandpass', 1800, 0.4)).connect(gain(0.0018)).connect(dayAmb);
   const layer = () => { const g = gain(0); g.connect(cityBus); return g; };
   places.street = layer();                                                                       // the record, through a little radio
   recordOut.connect(biquad('highpass', 700)).connect(biquad('lowpass', 2600)).connect(gain(1.6)).connect(places.street);

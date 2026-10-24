@@ -587,7 +587,8 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
     const dt = now - lastFrame; lastFrame = now;
     room.update(time);
     room.setDetail(post.tier);
-    renderer.toneMappingExposure += (baseExpo * (camMode === 'topdown' ? 1.45 : 1) - renderer.toneMappingExposure) * 0.08;
+    const dayK = room.dayK; post.setDay(dayK);
+    renderer.toneMappingExposure += (baseExpo * (camMode === 'topdown' ? 1.45 : 1) * (1 + (room.dayExposure - 1) * dayK) - renderer.toneMappingExposure) * 0.08;
     diceSys.update(now);
     if (props) { props.setDetail(post.tier); props.update(time, room.bulbWorld); }
     for (let k = tweens.length - 1; k >= 0; k--) {

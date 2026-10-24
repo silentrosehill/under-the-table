@@ -6,7 +6,7 @@
 //
 //   const st = createSettings({ ...host });  st.open(); st.sync();
 //   host: { view(), setView(v), cam(), setCam(m), camOptions(), labelStyle(), setLabelStyle(v), labelsAll(), setLabelsAll(b), isCity(),
-//           quality(), setQuality(q), broadcast(), setBroadcast(b), lang(), setLang(l), ann(), setAnn(l), annPos(), setAnnPos(p), sideLog(), setSideLog(b),
+//           quality(), setQuality(q), broadcast(), setBroadcast(b), lighting(), setLighting(m), lang(), setLang(l), ann(), setAnn(l), annPos(), setAnnPos(p), sideLog(), setSideLog(b),
 //           hover(), setHover(b), scale(), setScale(pct, commit), sfx, openGuide() }
 
 import { t, lang as curLang, onLang } from './i18n.js';
@@ -43,6 +43,7 @@ export function createSettings(host) {
       ${row('labelsAll', 'tag', t('Sign density'), seg('labelsAll', [{ v: '0', label: t('Quiet') }, { v: '1', label: t('All') }]), t('Show every street label, or only the busy ones.'), 'city-only signs-only')}
       ${row('quality', 'sliders', t('Graphics'), seg('quality', [{ v: 'auto', label: t('Auto') }, { v: 'high', label: t('High') }, { v: 'medium', label: t('Medium') }, { v: 'low', label: t('Low') }]), t('Lower it if the game stutters.'), 'stack')}
       ${row('broadcast', 'tv', t('Broadcast look'), onOff('broadcast'), t('1960s black-and-white broadcast, with scanlines.'))}
+      ${row('lighting', 'sparkle', t('Lighting'), seg('lighting', [{ v: 'night', label: t('Night') }, { v: 'day', label: t('Day') }]), t('Night: the hanging bulb. Day: sunlight through the window.'))}
       ${row('lang', 'globe', t('Language'), seg('lang', [{ v: 'en', label: 'English' }, { v: 'fr', label: 'Français' }]))}
       <div class="st-row st-slide" data-row="scale"><div class="st-lab">${ic('textsize')}<div><b>${esc(t('Text size'))}</b></div><output class="ui-scale-out"></output></div>
         <input type="range" class="ui-scale-range" id="stScale" min="85" max="140" step="5" aria-label="${esc(t('Text size'))}">
@@ -71,7 +72,7 @@ export function createSettings(host) {
   // ---- state -> controls
   const val = {
     view: () => host.view(), cam: () => host.cam(), labelStyle: () => host.labelStyle(), labelsAll: () => (host.labelsAll() ? '1' : '0'),
-    quality: () => host.quality(), broadcast: () => (host.broadcast() ? '1' : '0'), lang: () => host.lang(), ann: () => host.ann(), annPos: () => host.annPos(),
+    quality: () => host.quality(), broadcast: () => (host.broadcast() ? '1' : '0'), lighting: () => host.lighting(), lang: () => host.lang(), ann: () => host.ann(), annPos: () => host.annPos(),
     sideLog: () => (host.sideLog() ? '1' : '0'), hover: () => (host.hover() ? '1' : '0'),
     mute: () => (host.sfx.muted ? '1' : '0'), music: () => (host.sfx.music ? '1' : '0'),
   };
@@ -111,6 +112,7 @@ export function createSettings(host) {
       case 'labelsAll': host.setLabelsAll(v === '1'); break;
       case 'quality': host.setQuality(v); break;
       case 'broadcast': host.setBroadcast(v === '1'); break;
+      case 'lighting': host.setLighting(v); break;
       case 'lang': host.setLang(v); break;
       case 'ann': host.setAnn(v); break;
       case 'annPos': host.setAnnPos(v); break;
