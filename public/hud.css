@@ -567,3 +567,12 @@ body[data-theme].turncard-centre.ann-bottom #turnCard { top: calc(50% - 30px); }
 body[data-theme].turncard-compact #turnCard .tc-photo { display: none; }
 body[data-theme] #cardPick { left: 50%; top: 50%; bottom: auto; transform: translate(-50%, -50%); max-height: calc(100vh - 160px); z-index: 9; }
 body[data-theme].turncard-centre:not(.turncard-compact) #turnCard .tc-photo { display: block; }
+
+/* ---- loading screen over the 3D view (loading.js) ---- */
+.scene-loading { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 42%, #1a1410 0%, #0b0806 70%); transition: opacity .6s ease; pointer-events: none; }
+.scene-loading.out { opacity: 0 !important; }
+.scene-loading .sl-box { width: min(320px, 70vw); text-align: center; color: var(--h-text, #f0e6cc); }
+.scene-loading .sl-title { font: 600 calc(var(--ui-scale, 1) * 15px) 'Oswald', 'Arial Narrow', sans-serif; letter-spacing: .28em; text-transform: uppercase; color: var(--h-brass2, #e2c36e); }
+.scene-loading .sl-bar { margin: 16px 0 10px; height: 2px; background: rgba(240, 230, 204, .14); overflow: hidden; }
+.scene-loading .sl-bar i { display: block; height: 100%; background: var(--h-brass, #c9a24f); transform: scaleX(0); transform-origin: 0 50%; transition: transform .25s ease-out; box-shadow: 0 0 8px rgba(201, 162, 79, .6); }
+.scene-loading .sl-step { min-height: 1.2em; font: calc(var(--ui-scale, 1) * 12px) 'Special Elite', monospace; color: var(--h-mute, #a99a80); }

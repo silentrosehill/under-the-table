@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { track, decoded } from '../assets.js';
 
 const loader = new GLTFLoader();
 const texLoader = new THREE.TextureLoader();
@@ -24,8 +25,12 @@ function shared(kit, m) {
   return canon.get(key);
 }
 
-export function preload(list) {
-  return Promise.all(list.map(([kit, name]) => {
+// Fetches the models a few at a time (a browser queues its requests anyway; a fixed pool keeps the first ones from being starved by the
+// last, and lets progress() report a smooth count). Calling it again with the same models costs nothing.
+export function preload(list, progress, limit = 12) {
+  let done = 0, next = 0;
+  const total = list.length;
+  const one = ([kit, name]) => {
     const key = `${kit}/${name}`;
     if (models.has(key)) return models.get(key).ready;
     const entry = { scene: null, animations: [] };
@@ -39,13 +44,18 @@ export function preload(list) {
     }).catch(e => console.warn('[city] missing model', key, e.message));
     models.set(key, entry);
     return entry.ready;
-  }));
+  };
+  const worker = async () => {
+    while (next < total) { await one(list[next++]); progress && progress(++done / total); }
+  };
+  return Promise.all(Array.from({ length: Math.min(limit, total) }, worker));
 }
 
 function texture(kit, name) {
   const key = `${kit}/${name}`;
   if (!textures.has(key)) {
-    const t = texLoader.load(`/assets/city/${kit}/Textures/${name}.png`);
+    let done; track(new Promise(r => { done = r; }));
+    const t = texLoader.load(`/assets/city/${kit}/Textures/${name}.png`, img => decoded(img, done), undefined, done);
     t.flipY = false;                                    // glTF texture convention
     t.colorSpace = name === 'windows' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
     textures.set(key, t);

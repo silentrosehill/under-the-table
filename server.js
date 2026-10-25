@@ -1869,7 +1869,8 @@ const MIME = {
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
   '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
 };
-const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.cjs', '.css', '.json', '.svg', '.txt', '.md', '.wasm', '.gltf']);
+// (models, the HDR environment and the TTF fonts compress 3-12x: the Kenney city GLBs are plain float geometry)
+const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.cjs', '.css', '.json', '.svg', '.txt', '.md', '.wasm', '.gltf', '.glb', '.hdr', '.ttf', '.otf']);
 const PUBLIC = path.join(__dirname, 'public');
 // compressed copies of static text files, keyed by file + mtime (so an edited file is recompressed on its next request)
 const zipCache = new Map(); let zipBytes = 0;
@@ -1899,10 +1900,11 @@ function serveStatic(req, res, url) {
     if (err || !st.isFile()) { res.writeHead(404); return res.end('Not found'); }
     const ext = path.extname(file);
     // Our own code and pages are re-validated on every load (ETag -> a cheap 304 when unchanged), so an update reaches players on a plain reload.
-    // Third-party libraries and big assets (models, textures, fonts) may be cached for an hour.
+    // Third-party libraries and big assets (models, textures, fonts, sfx) are built files that only change under a new name,
+    // so they may be cached for a week (and served stale for a day while the ETag is re-checked): a reload costs no network at all.
     const code = ['.html', '.js', '.mjs', '.css', '.json'].includes(ext) && !relative.startsWith('vendor' + path.sep);
     const etag = `"${st.size.toString(36)}-${Math.round(st.mtimeMs).toString(36)}"`;
-    const base = { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': code ? 'no-cache' : 'public, max-age=3600', ETag: etag, 'Last-Modified': st.mtime.toUTCString(), Vary: 'Accept-Encoding' };
+    const base = { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': code ? 'no-cache' : 'public, max-age=604800, stale-while-revalidate=86400', ETag: etag, 'Last-Modified': st.mtime.toUTCString(), Vary: 'Accept-Encoding' };
     const inm = req.headers['if-none-match'];
     if (inm && inm.split(',').some(x => x.trim().replace(/^W\//, '') === etag)) { res.writeHead(304, base); return res.end(); }
     const ae = String(req.headers['accept-encoding'] || '');

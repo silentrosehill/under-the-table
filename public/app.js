@@ -14,6 +14,14 @@ import { pcText } from './pcolor.js';
 import { ic, emo, deEmoji, keyOfEmoji, TOKEN_ICON, TONE, stripEmoji } from './icons.js';
 import { createSettings } from './settings.js';
 import { lighting } from './lighting.js';
+import { createLoading } from './loading.js';
+
+// The back room's big files (table wood, the lamp, the props, the reflection map: ~5 MB) are what a first visit waits for. Start them as
+// soon as the scripts are in, at low priority, so they are already in the HTTP cache when the 3D scene asks for them (a no-op once cached).
+for (const f of ['hdri/fireplace_1k.hdr', 'textures/table_color.webp', 'textures/table_normal.webp', 'textures/table_arm.webp', 'textures/rope_color.webp', 'textures/rope_normal.webp', 'textures/paper_normal.webp',
+  'models/hanging_industrial_lamp.glb', 'models/lightbulb_01.glb', 'models/WoodenChair_01.glb', 'models/cigarette_pack.glb', 'models/vintage_lighter.glb', 'models/round_spectacles.glb', 'models/vintage_pocket_watch.glb', 'models/office_notepads.glb']) {
+  try { fetch('/assets/' + f, { priority: 'low' }).then(r => r.arrayBuffer()).catch(() => {}); } catch {}
+}
 
 const TOKEN_EMOJI = { car: '🚗', hat: '🎩', watch: '⌚', case: '💼', dog: '⌚', glass: '💼', ship: '🚗', dino: '⌚', rocket: '🚗', cat: '⌚', crown: '🎩' };   // (the last six are retired pieces, shown as the one they became)
 const TOKEN_NAME = { car: 'Sedan', hat: 'Fedora', watch: 'Pocket watch', case: 'Briefcase' };
@@ -229,6 +237,7 @@ function render() {
   $('#lobbyScreen').hidden = !(joined && S.phase === 'lobby');
   $('#gameScreen').hidden = S.phase === 'lobby';
   document.body.classList.toggle('in-game', S.phase !== 'lobby');
+  if (S.phase === 'lobby' && earlyLoad) { earlyLoad.end(); earlyLoad = null; }
   if (showJoin) renderJoin();
   else if (S.phase === 'lobby') renderLobby();
   else renderGame();
@@ -395,11 +404,15 @@ $('#leaveBtn').onclick = async () => { await act('leave'); secret = null; safeSe
 // Each player picks their own; switching swaps the renderer and keeps the game as it is.
 let view = safeGet('mono.view') === 'city' ? 'city' : 'table';
 let cityModule = null;
+// City Mode takes a few seconds to fetch and build: its loading screen goes up now, and the scene carries it on (and lifts it) once the game state arrives
+let earlyLoad = view === 'city' && safeGet('mono.secret') ? createLoading($('#scene'), 'Building the city…') : null;
+if (earlyLoad) { earlyLoad.set(0.02, t('Fetching models…')); setTimeout(() => earlyLoad && earlyLoad.end(), 20000); }
 const loadCity = () => (cityModule ? Promise.resolve(cityModule) : import('./city/cityScene.js').then(m => (cityModule = m)));
 async function setView(v) {
   v = v === 'city' ? 'city' : 'table';
   if (v === 'city') { try { await loadCity(); } catch (e) { console.error(e); toast(t('Something went wrong')); v = 'table'; } }
   view = v; safeSet('mono.view', v);
+  if (v !== 'city' && earlyLoad) { earlyLoad.end(); earlyLoad = null; }
   document.body.classList.toggle('view-city', v === 'city');
   if (scene) { scene.destroy(); scene = null; sceneKey = null; }
   sfx.setScene(v);

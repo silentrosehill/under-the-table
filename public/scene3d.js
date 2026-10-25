@@ -17,6 +17,9 @@ import { makeWheel3D } from './wheel3d.js';
 import { fmtMoney } from './money.js';
 import { ms as slow } from './speed.js';
 import { createFx3d } from './fx3d.js';
+import { createLoading } from './loading.js';
+import { warmUp } from './warm.js';
+import { t as tr } from './i18n.js';
 import { createBoard, boardHeight, BOARD_T, makeHouse, makeHotel, makeOwnerChip, makeMortgageSlip } from './board.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
@@ -80,8 +83,21 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   room.envReady.then(tex => setTokenEnvironment(tex, renderer));
   const baseExpo = renderer.toneMappingExposure;       // Top-down lifts it a little so the far rows stay readable
   let props = null;   // the clutter around the board (props.js); waits for its printed fonts
-  Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f)))
-    .catch(() => {}).then(() => { props = createProps(scene, { tableY: TABLE_Y }); if (lastState) props.sync(lastState); });
+  const fontsReady = Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f))).catch(() => {});
+  let booted = false, live = false;                                    // nothing is drawn until the props are in and every shader and texture is warm (boot below), behind the loading screen
+  const loading = createLoading(container, 'Setting the table…');
+  async function boot() {
+    loading.set(0.05, tr('Setting the table…'));
+    await fontsReady;
+    if (!alive) return;
+    if (!props) { props = createProps(scene, { tableY: TABLE_Y }); if (lastState) props.sync(lastState); }
+    await warmUp({ renderer, scene, camera, post, room, clock, progress: f => loading.set(0.1 + 0.9 * f) });
+    if (!alive) return;
+    lastFrame = performance.now();
+    live = true;
+    performance.mark('table:built');
+    loading.end();
+  }
 
   let world = new THREE.Group();   // board + decor, rebuilt when the board or skin changes
   scene.add(world);
@@ -583,6 +599,7 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
   function frame() {
     if (!alive) return;
     requestAnimationFrame(frame);
+    if (!live) return;
     const now = performance.now(), time = clock.getElapsedTime();
     const dt = now - lastFrame; lastFrame = now;
     room.update(time);
@@ -667,10 +684,12 @@ export function createScene(container, { onTileClick, onCard, emoji, teamColors 
       board = newBoard; meta = newMeta; mapKey = newMapKey;
       buildWorld();
       lastProps = null;
+      if (!booted) { booted = true; boot(); }
     },
     setMood() {},   // one fixed mood now: the bulb
     destroy() {     // switching to City Mode: stop drawing and free the GPU
       alive = false;
+      loading.end();
       resizeObs.disconnect();
       controls.dispose();
       post.dispose();

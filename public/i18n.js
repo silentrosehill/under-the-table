@@ -313,7 +313,7 @@ for (const [k, v] of Object.entries({
   'Side event log': 'Journal latéral', 'The last few events, down the left edge.': 'Les derniers événements, le long du bord gauche.',
   'Hover bubbles': 'Bulles au survol', 'A small card over any square you rest the mouse on.': 'Une petite carte au-dessus de la case sur laquelle tu poses la souris.',
   "What's new": 'Nouveautés', 'Versions, highlights and what is still being finished.': 'Versions, points forts et ce qui est en cours de finition.',
-  'In progress': 'En cours', 'Highlights': 'Points forts', 'Added': 'Ajouts', 'Changed': 'Changements', 'Bugs fixed': 'Corrections', 'Still being finished': 'En cours de finition', 'Loading…': 'Chargement…',
+  'In progress': 'En cours', 'Highlights': 'Points forts', 'Added': 'Ajouts', 'Changed': 'Changements', 'Bugs fixed': 'Corrections', 'Still being finished': 'En cours de finition', 'Loading…': 'Chargement…', 'Building the city…': 'Construction de la ville…', 'Lighting the lamps…': 'Allumage des lampadaires…', 'Fetching models…': 'Chargement des modèles…', 'Setting the table…': 'Mise de la table…',
   'Camera': 'Caméra', 'Reactions': 'Réactions', 'Log & chat': 'Journal et discussion', 'Quit': 'Quitter', 'What is this?': 'C’est quoi ?',
   'Display, sound and information settings.': 'Réglages d’affichage, de son et d’information.',
   'Open the settings': 'Ouvrir les réglages', 'Close': 'Fermer', 'Remove': 'Retirer',

@@ -171,7 +171,7 @@ export function createRoom(scene, renderer, { tableY }) {
 
   // dim warm reflections from a real interior (barely visible — the bulb does the lighting)
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envReady = loadHDR('fireplace_2k').then(hdr => { const t = pmrem.fromEquirectangular(hdr).texture; scene.environment = t; hdr.dispose(); return t; });
+  const envReady = loadHDR('fireplace_1k').then(hdr => { const t = pmrem.fromEquirectangular(hdr).texture; scene.environment = t; hdr.dispose(); return t; });
   scene.environmentIntensity = 0.07;
 
   // ---- the table: worn varnished wood, thick, with rounded edges
@@ -372,7 +372,7 @@ export function createRoom(scene, renderer, { tableY }) {
   const sun = new THREE.DirectionalLight('#fff0d6', 0);
   sun.position.copy(sunTarget).addScaledVector(sunDir, -95);
   sun.target.position.copy(sunTarget);
-  sun.visible = false; sun.castShadow = true;
+  sun.castShadow = true; sun.shadow.autoUpdate = false;     // (always in the scene: changing the light count would recompile every shader, so by night the sun is just at intensity 0)
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -80, right: 80, top: 80, bottom: -80, near: 1, far: 230 });
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
@@ -427,13 +427,22 @@ export function createRoom(scene, renderer, { tableY }) {
   const DAYC = { bg: new THREE.Color('#9a8c78'), fog: new THREE.Color('#d2c0a2'), skyC: new THREE.Color('#a4c4f4'), gndC: new THREE.Color('#e6bd8c') };
   const DAY_FOG = 0.0034, DAY_SPILL = 1.5, DAY_ENV = 0.5;
   const dustNight = dust.material.uniforms.color.value.clone(), dustDay = new THREE.Color(1.0, 0.92, 0.78).multiplyScalar(0.8);
-  let k = 0, lastK = -1, shaftsOn = true;
+  let k = 0, lastK = -1, shaftsOn = true, sunLit = null, spotLit = null;
+  const offMatrix = new THREE.Matrix4().set(0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0, 1);       // every fragment lands at (5, 5, 5): outside any shadow map
+  function shadowOnOff(light, on) {
+    light.shadow.autoUpdate = on;
+    if (on) light.shadow.needsUpdate = true;                                                         // (the matrix is recomputed when the map is drawn)
+    else light.shadow.matrix.copy(offMatrix);
+  }
   function applyDay(kk) {
     k = kk; lastK = kk;
     const day_ = kk > 0.001, full = kk > 0.999;
     day.visible = day_;
-    sun.visible = day_; sun.intensity = SUN_POWER * kk;
-    spot.visible = inner.visible = !full;
+    // The lights stay in the scene whatever the hour (their count is baked into every material's shader: toggling them hitches for a long
+    // while). An unlit one is at intensity 0, draws no shadow map, and its shadow matrix is parked off the map so fragments skip the lookups.
+    sun.intensity = SUN_POWER * kk;
+    if (day_ !== sunLit) { sunLit = day_; shadowOnOff(sun, sunLit); }
+    if (!full !== spotLit) { spotLit = !full; shadowOnOff(spot, spotLit); }
     scene.background.copy(NIGHT.bg).lerp(DAYC.bg, kk);
     scene.fog.color.copy(NIGHT.fog).lerp(DAYC.fog, kk);
     scene.fog.density = NIGHT.fogD + (DAY_FOG - NIGHT.fogD) * kk;
@@ -477,6 +486,11 @@ export function createRoom(scene, renderer, { tableY }) {
   return {
     group, update, bulbWorld, envReady,
     get dayK() { return k; },
+    // warm-up (warm.js): show every Day / Night-only object at once so all their shaders compile, then put the real hour back
+    showAll(on) {
+      if (on) { day.visible = shaft.visible = sunDust.visible = cone.visible = dust.visible = true; lastK = lighting.k; shadowOnOff(sun, true); shadowOnOff(spot, true); }
+      else { lastK = -1; sunLit = spotLit = null; }
+    },
     dayExposure: 0.85,                                   // the tone-map exposure at full Day, relative to Night (sun and sky are far brighter than the bulb)
     setDetail(tier) {
       const n = tier === 'low' ? 450 : N; if (dustGeo.drawRange.count !== n) dustGeo.setDrawRange(0, n);   // fewer motes on Low

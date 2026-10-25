@@ -1,5 +1,29 @@
 [
   {
+    "version": "1.3.1",
+    "date": "2026-10-25",
+    "title": "Smooth start",
+    "highlights": [
+      "No more stutter after loading or when switching Night/Day.",
+      "Less than half the download for players joining online."
+    ],
+    "changes": {
+      "added": [
+        "Loading screen with a real progress bar while the board and city are prepared."
+      ],
+      "changed": [
+        "All 3D shaders are prepared during loading, so nothing freezes the first time it appears.",
+        "Switching the Lighting between Night and Day is now instant.",
+        "The city is built in small slices so the game never locks up while loading.",
+        "Smaller lighting and table textures; 3D models, lighting and fonts are compressed and cached, so reloads are nearly free."
+      ],
+      "fixed": [
+        "Freezes of up to half a second in the first seconds of a game.",
+        "Freeze (up to several seconds the first time) when switching to Day lighting."
+      ]
+    }
+  },
+  {
     "version": "1.3.0",
     "date": "2026-10-25",
     "title": "Daylight",

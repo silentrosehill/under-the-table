@@ -257,6 +257,7 @@ export function createPost(renderer, scene, camera, { onShadowSize, look = {} } 
   return {
     dispose() { restoreGlass(); for (const p of composer.passes) p.dispose && p.dispose(); composer.dispose && composer.dispose(); target.dispose(); },
     setSize,
+    get target() { return composer.renderTarget1; },          // what the scene is drawn into (warm.js compiles programs for it: tone mapping happens later, in OutputPass)
     render(dtMs, time) {
       measure(dtMs);
       grade.uniforms.time.value = time;

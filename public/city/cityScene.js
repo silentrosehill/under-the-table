@@ -9,6 +9,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createPost } from '../post.js';
+import { createLoading } from '../loading.js';
+import { warmUp } from '../warm.js';
 import { disposeScene } from '../dispose.js';
 import { createRoom } from '../room.js';
 import { createProps, viewYaw } from '../props.js';
@@ -36,6 +38,10 @@ import { createTileFx } from './tilefx.js';
 import { createFx3d } from '../fx3d.js';
 import { effectMult, effectTags, tileEffects as tileEffectsOf, utilPerPip } from '../effects.js';
 import { ms as slow } from '../speed.js';
+
+// the models start downloading the moment this module loads, in parallel with the connection and the first game state
+preload(modelList());
+const yieldMain = (() => { const ch = new MessageChannel(); let res = null; ch.port1.onmessage = () => { const r = res; res = null; r && r(); }; return () => new Promise(r => { res = r; ch.port2.postMessage(0); }); })();
 
 Object.assign(ARCH, LEVEL_ARCH);                   // the single-building levels of every district (bowery.js, london.js …)
 const S = 1.28;                                  // city units → table units (the plinth, 15.7 across, still sits inside the 30-deep table; props keep clear of it, see props.js; was 1.15, before that 1.04)
@@ -202,8 +208,9 @@ export function createCityScene(container, { onTileClick, onCard }) {
   room.envReady.then(tex => setTokenEnvironment(tex, renderer));
   const baseExpo = renderer.toneMappingExposure;       // Top-down lifts it a little so the far rows stay readable
   let props = null, lastState = null, alive = true;
-  Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f)))
-    .catch(() => {}).then(() => { if (!alive) return; props = createProps(scene, { tableY: TABLE_Y }); if (lastState) props.sync(lastState); });
+  const fontsReady = Promise.all(['24px "Special Elite"', '600 40px Oswald', '400 40px "Abril Fatface"', '34px Caveat'].map(f => document.fonts.load(f))).catch(() => {});
+  let live = false;                                    // nothing is drawn until the city is built and its shaders are compiled (boot below), behind the loading screen
+  let loading = createLoading(container, 'Building the city…');
 
   // the model city: everything below is in city units inside this group
   const city = new THREE.Group();
@@ -548,7 +555,6 @@ export function createCityScene(container, { onTileClick, onCard }) {
   // ------------------------------------------------------------ the squares
   let board = null, meta = null;
   let tiles = [];
-  const ready = preload(modelList());
 
   // an "occluder": a piece of a lot that stands taller than the L0 shack and is broad enough to hide a street or a token (lamps and posts are not)
   const _bs = new THREE.Vector3();
@@ -908,17 +914,56 @@ export function createCityScene(container, { onTileClick, onCard }) {
     }
   }
 
-  function buildWorld() {
+  // The city is built a few squares at a time, yielding to the browser in between, so the page never freezes (and the loading bar moves).
+  let buildToken = 0;
+  async function buildWorld(progress = () => {}) {
+    const my = ++buildToken;
     world.clear();
     life.clear();
     squareLamps.length = 0;
+    tiles = [];
     world.add(bake(buildSquare()), squareFurniture());
     plates.begin();
-    tiles = board.map((_, i) => buildTile(i));
+    const built = [];
+    let t0 = performance.now();
+    for (let i = 0; i < board.length; i++) {
+      built.push(buildTile(i));
+      progress((i + 1) / board.length);
+      if (performance.now() - t0 > 12) { await yieldMain(); if (!alive || my !== buildToken) return false; t0 = performance.now(); }
+    }
+    tiles = built;
     roadPts = []; for (let t = 0; t < 40; t += 0.5) roadPts.push(roadPoint(t).clone().setY(BASE_H + 0.05));
     bubbles.build(board.length);
     dice.place(lastDice || [3, 4]);
     syncTokensToState();
+    return true;
+  }
+  // models → fonts and props → squares → state → every shader and texture, then the loading screen lifts
+  async function boot() {
+    const my = buildToken + 1, step = (a, b) => f => loading.set(a + (b - a) * f);
+    performance.mark('city:boot');
+    live = false; loading = createLoading(container, 'Building the city…');     // (a rebuild after the first one shows the loading screen again)
+    loading.set(0.02, tr('Fetching models…'));
+    await preload(modelList(), step(0.02, 0.3));
+    performance.mark('city:models');
+    await fontsReady;
+    if (!alive) return;
+    if (!props) { props = createProps(scene, { tableY: TABLE_Y }); await yieldMain(); }
+    loading.set(0.3, tr('Building the city…'));
+    if (!await buildWorld(step(0.3, 0.7)) || !alive) return;
+    performance.mark('city:tiles');
+    lastProps = null;
+    if (lastState) { props.sync(lastState); applyState(lastState); }
+    loading.set(0.7, tr('Lighting the lamps…'));
+    await warmUp({ renderer, scene, camera, post, room, progress: step(0.7, 1), clock,
+      before: () => { for (const tile of tiles) fadeEnter(tile); },       // the see-through variants of every material, so the first fade compiles nothing
+      after: () => { for (const tile of tiles) fadeExit(tile); } });
+    performance.mark('city:warmed');
+    if (!alive || my !== buildToken) return;
+    lastFrame = performance.now();
+    live = true;
+    performance.mark('city:built');
+    loading.end();
   }
 
   // ------------------------------------------------------------ dice on the square
@@ -1407,6 +1452,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
   function frame() {
     if (!alive) return;
     requestAnimationFrame(frame);
+    if (!live) return;
     const now = performance.now(), time = clock.getElapsedTime(), dt = now - lastFrame;
     lastFrame = now;
     room.update(time);
@@ -1513,7 +1559,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
   const api = {
     setBoard(newBoard, newMeta) {
       board = newBoard; meta = newMeta;
-      ready.then(() => { if (!alive) return; buildWorld(); lastProps = null; if (lastState) applyState(lastState); });
+      boot();
     },
     setMood() {},
     setQuality: q => post.setQuality(q),
@@ -1604,6 +1650,7 @@ export function createCityScene(container, { onTileClick, onCard }) {
     },
     destroy() {
       alive = false;
+      loading.end();
       resizeObs.disconnect();
       controls.dispose();
       post.dispose();

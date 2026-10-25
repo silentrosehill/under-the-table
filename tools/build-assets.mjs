@@ -27,7 +27,7 @@ const TEXTURES = [
   // [source, output, size]
   ['wood_table_worn/wood_table_worn_diff_2k.jpg', 'textures/table_color.webp', 2048],
   ['wood_table_worn/wood_table_worn_nor_gl_2k.jpg', 'textures/table_normal.webp', 2048],
-  ['wood_table_worn/wood_table_worn_arm_2k.jpg', 'textures/table_arm.webp', 2048],
+  ['wood_table_worn/wood_table_worn_arm_2k.jpg', 'textures/table_arm.webp', 1024],   // (roughness + occlusion: smooth data, a quarter of the pixels is enough)
   ['Rope001/x/Rope001_1K-JPG_Color.jpg', 'textures/rope_color.webp', 512],
   ['Rope001/x/Rope001_1K-JPG_NormalGL.jpg', 'textures/rope_normal.webp', 512],
   ['Cardboard004/x/Cardboard004_1K-JPG_Color.jpg', 'textures/cardboard_color.webp', 1024],
@@ -52,7 +52,8 @@ for (const [from, to, size] of TEXTURES) {
   await sharp(src(from)).resize(size, size, { fit: 'inside' }).webp({ quality: 88 }).toFile(out(to));
   console.log('texture', to);
 }
-copyFileSync(src('fireplace/fireplace_2k.hdr'), out('hdri/fireplace_2k.hdr'));
+// the HDR is only a dim, blurred reflection environment: 1k wide is plenty and 4x lighter on the wire
+execFileSync('node', [join(root, 'tools/hdr-resize.mjs'), src('fireplace/fireplace_2k.hdr'), out('hdri/fireplace_1k.hdr'), '1024'], { stdio: 'inherit' });
 
 // black & white tile photos (tools/photo-list.json, credited in CREDITS.md) + the manifest the board reads
 const { MAPS } = createRequire(import.meta.url)('../maps.js');
