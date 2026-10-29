@@ -5,6 +5,15 @@ Schema: [{ version, date (YYYY-MM-DD), title, highlights: string[],
 changes: { added: string[], changed: string[], fixed: string[] } }], newest first.
 Keep this file and the JSON in sync. -->
 
+## 1.3.2 · Copy fix (2026-10-29)
+
+- The invite link's Copy button works again in the desktop app.
+
+### Fixed
+
+- Copy invite link in the lobby did nothing in the desktop app (the game window was refusing clipboard access).
+- The Copy button now falls back to an older copy method when the clipboard is blocked, and always says whether it worked.
+
 ## 1.3.1 · Smooth start (2026-10-25)
 
 - No more stutter after loading or when switching Night/Day.

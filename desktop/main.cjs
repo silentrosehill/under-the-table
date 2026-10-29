@@ -17,7 +17,10 @@ function stopHost() {
 }
 function secure(win) {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  // everything is refused except writing to the clipboard (the lobby's "Copy" invite button)
+  const allow = permission => permission === 'clipboard-sanitized-write';
+  win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => callback(allow(permission)));
+  win.webContents.session.setPermissionCheckHandler((_wc, permission) => allow(permission));
   win.webContents.on('will-attach-webview', e => e.preventDefault());
 }
 function openGame(url) {

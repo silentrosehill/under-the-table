@@ -275,6 +275,23 @@ function lobbyPlayerRow(p, isHost) {
     </div>`;
 }
 
+// copy to the clipboard: the async API first, then the old selection-based copy (works where the API is blocked)
+function copyText(text, input) {
+  const fallback = () => {
+    let ok = false;
+    try {
+      const el = input || Object.assign(document.createElement('textarea'), { value: text });
+      if (!input) { el.style.cssText = 'position:fixed;opacity:0;left:-9999px'; document.body.append(el); }
+      el.focus(); el.select(); if (el.setSelectionRange) el.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+      if (!input) el.remove();
+    } catch {}
+    toast(ok ? t('Link copied.') : t('Press Cmd/Ctrl+C to copy the link.'));
+    if (!ok && input) input.select();
+  };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => toast(t('Link copied.')), fallback);
+  else fallback();
+}
 function renderLobby() {
   const isHost = S.hostId === S.you;
   const my = me();
@@ -359,7 +376,7 @@ function renderLobby() {
   const inv = $('#invite');
   if (S.inviteUrl) {
     inv.innerHTML = `<h3>${t('Invite friends')}</h3><div class="invite-row"><input class="modal-input" readonly value="${esc(S.inviteUrl)}"><button class="btn small">${t('Copy')}</button></div>`;
-    inv.querySelector('button').onclick = () => navigator.clipboard.writeText(S.inviteUrl).then(() => toast(t('Link copied.')), () => inv.querySelector('input').select());
+    inv.querySelector('button').onclick = () => copyText(S.inviteUrl, inv.querySelector('input'));
   } else {
     inv.innerHTML = isHost && ['localhost', '127.0.0.1'].includes(location.hostname)
       ? `<p class="muted">${t('Friends at home? Restart the server with {cmd} to get a link.', { cmd: '<code>node server.js --online</code>' })}</p>` : '';

@@ -33,7 +33,7 @@ const FR = {
   'Game length': 'Durée', 'until bankruptcy': 'jusqu’à la faillite', '20 rounds (quick)': '20 tours (rapide)', '30 rounds': '30 tours', '50 rounds': '50 tours',
   'Chaos events (random twists every few rounds)': 'Événements chaos (rebondissements aléatoires)', 'Taxi Company jackpot (taxes & fines pile up)': 'Cagnotte de la compagnie de taxis (taxes et amendes s’accumulent)',
   'Start game': 'Lancer la partie', 'Leave': 'Partir', 'Join': 'Rejoindre', 'Empty seat': 'Place libre', '1 seat left': '1 place libre',
-  'HOST': 'HÔTE', 'YOU': 'TOI', 'BOT': 'BOT', 'offline': 'hors ligne', 'Remove': 'Retirer', 'Invite friends': 'Inviter des amis', 'Copy': 'Copier', 'Link copied.': 'Lien copié.',
+  'HOST': 'HÔTE', 'YOU': 'TOI', 'BOT': 'BOT', 'offline': 'hors ligne', 'Remove': 'Retirer', 'Invite friends': 'Inviter des amis', 'Copy': 'Copier', 'Link copied.': 'Lien copié.', 'Press Cmd/Ctrl+C to copy the link.': 'Appuie sur Cmd/Ctrl+C pour copier le lien.',
   'Friends at home? Restart the server with {cmd} to get a link.': 'Des amis à distance ? Relance le serveur avec {cmd} pour obtenir un lien.',
   'Waiting for {name} to start the game.': 'On attend que {name} lance la partie.', 'the host': 'l’hôte',
   'Invite a friend or add a bot to start.': 'Invite un ami ou ajoute un bot pour commencer.',
