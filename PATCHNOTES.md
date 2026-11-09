@@ -5,6 +5,14 @@ Schema: [{ version, date (YYYY-MM-DD), title, highlights: string[],
 changes: { added: string[], changed: string[], fixed: string[] } }], newest first.
 Keep this file and the JSON in sync. -->
 
+## 1.3.3 · Quicker start (2026-11-09)
+
+- The game's code now downloads in parallel, so the page starts faster, especially over an online link.
+
+### Changed
+
+- All code files are fetched at once instead of one after another.
+
 ## 1.3.2 · Copy fix (2026-10-29)
 
 - The invite link's Copy button works again in the desktop app.

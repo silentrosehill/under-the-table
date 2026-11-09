@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.3.3",
+    "date": "2026-11-09",
+    "title": "Quicker start",
+    "highlights": [
+      "The game's code now downloads in parallel, so the page starts faster, especially over an online link."
+    ],
+    "changes": {
+      "added": [],
+      "changed": [
+        "All code files are fetched at once instead of one after another."
+      ],
+      "fixed": []
+    }
+  },
+  {
     "version": "1.3.2",
     "date": "2026-10-29",
     "title": "Copy fix",
